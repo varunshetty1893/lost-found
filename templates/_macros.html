@@ -140,6 +140,21 @@
 
 {# Department dropdown (students: academic only; staff: academic + administrative + support) with an "Other" escape hatch.
    Posts department and department_other. app.js hides the staff-only groups while "Student" is selected. #}
+{# Department dropdown for the admin roster dialogs. Required. "Other" reveals a text box with a placeholder. #}
+{% macro roster_dept_field(prefix) %}
+<div class="fld" data-roster-dept-wrap>
+  <label for="{{ prefix }}-dept">Department <span class="req" aria-hidden="true"> *</span></label>
+  <select id="{{ prefix }}-dept" name="department" required data-roster-dept>
+    <option value="" disabled selected>Select department</option>
+    {% for group, opts, audience in department_groups() %}
+    <optgroup label="{{ group }}">{% for value, text in opts %}<option value="{{ value }}">{{ text }}</option>{% endfor %}</optgroup>
+    {% endfor %}
+    <option value="__other__">Other (type it)</option>
+  </select>
+  <input type="text" id="{{ prefix }}-dept-other" name="department_other" class="dept-other" placeholder="Type department" minlength="2" maxlength="80" autocomplete="off" data-roster-dept-other hidden>
+</div>
+{% endmacro %}
+
 {% macro department_field(form) %}
 {% set cur = form.get('department', '') %}
 <div class="field">

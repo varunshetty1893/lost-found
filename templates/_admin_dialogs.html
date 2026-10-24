@@ -1,4 +1,4 @@
-{% from "_macros.html" import icon %}
+{% from "_macros.html" import icon, roster_dept_field %}
 {# Shared dialogs for the admin console. A button opens one with data-modal="<id>", data-action="<url>"
    and data-values='<json>'. app.js fills the form, so each page needs only the buttons. #}
 
@@ -16,7 +16,7 @@
         <div class="fld span2"><label for="re-name">Full name</label><input id="re-name" name="full_name" required minlength="2" maxlength="60" autocomplete="off" autofocus></div>
         <div class="fld span2"><label for="re-email">College email</label><input id="re-email" name="email" type="email" required maxlength="120" autocomplete="off"></div>
         <div class="fld"><label for="re-role">Role</label><select id="re-role" name="role"><option value="student">Student</option><option value="staff">Staff</option></select></div>
-        <div class="fld"><label for="re-dept">Department <span class="opt">(optional)</span></label><input id="re-dept" name="department" list="dept-suggestions" maxlength="80" autocomplete="off"></div>
+        {{ roster_dept_field("re") }}
         <div class="fld span2" data-end-field><label for="re-end">Course end date <span class="req" aria-hidden="true"> *</span></label><input id="re-end" name="academic_end" type="date" data-end-input><span class="hint">The student's account is closed automatically after this day.</span></div>
       </div>
     </div>

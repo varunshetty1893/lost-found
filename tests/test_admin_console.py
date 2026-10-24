@@ -349,5 +349,62 @@ class RouteReferenceTests(unittest.TestCase):
         self.assertEqual(missing, set())
 
 
+class RosterDepartmentTests(ConsoleBase):
+    """Department is a required dropdown in the roster dialogs; 'Other' takes typed text."""
+
+    def add(self, **over):
+        data = dict(id_number="d1", full_name="Dee Dee", email="dee@college.edu", role="staff",
+                    department="Library")
+        data.update(over)
+        return self.post(self.admin, "/admin/roster/add", "/admin/roster", **data).get_data(as_text=True)
+
+    def _dept(self, id_number):
+        with appmod.app.app_context():
+            row = appmod.get_db().execute("SELECT department FROM roster WHERE id_number = ?",
+                                          (id_number,)).fetchone()
+        return row["department"] if row else None
+
+    def test_dialogs_show_required_dropdown_with_other_and_placeholder(self):
+        page = self.admin.get("/admin/roster").get_data(as_text=True)
+        for prefix in ("ra", "re"):
+            self.assertRegex(page, rf'<select id="{prefix}-dept" name="department" required data-roster-dept>')
+            self.assertIn(f'id="{prefix}-dept-other"', page)
+        self.assertIn('value="__other__"', page)
+        self.assertIn('placeholder="Type department"', page)
+        self.assertNotIn("(optional)", re.search(r'id="dlg-roster-add".*?</dialog>', page, re.S).group(0))
+
+    def test_add_without_department_is_rejected(self):
+        self.assertIn("Choose the department", self.add(department=""))
+        self.assertIsNone(self._dept("D1"))
+
+    def test_add_other_without_text_is_rejected(self):
+        self.assertIn("Choose the department", self.add(department="__other__", department_other=" "))
+        self.assertIsNone(self._dept("D1"))
+
+    def test_add_other_with_text_is_saved(self):
+        self.assertIn("Roster entry saved", self.add(department="__other__", department_other="Zoology"))
+        self.assertEqual(self._dept("D1"), "Zoology")
+        # and it now appears in the registration dropdown
+        self.assertIn("Zoology", self.outsider.get("/register").get_data(as_text=True))
+
+    def test_edit_to_other_and_blank(self):
+        self.add()
+        with appmod.app.app_context():
+            rid = appmod.get_db().execute("SELECT id FROM roster WHERE id_number = 'D1'").fetchone()["id"]
+        base = dict(full_name="Dee Dee", email="dee@college.edu", role="staff")
+        r = self.post(self.admin, f"/admin/roster/{rid}/edit", "/admin/roster", department="", **base)
+        self.assertIn("Choose the department", r.get_data(as_text=True))
+        self.assertEqual(self._dept("D1"), "Library")
+        self.post(self.admin, f"/admin/roster/{rid}/edit", "/admin/roster",
+                  department="__other__", department_other="Botany", **base)
+        self.assertEqual(self._dept("D1"), "Botany")
+
+    def test_csv_row_without_department_is_skipped_with_reason(self):
+        html = self.upload_csv("id_number,full_name,email,role,department\nQ1,Quin Quo,quin@college.edu,staff,\n"
+                               ).get_data(as_text=True)
+        self.assertIn("Choose the department", html)
+        self.assertIsNone(self._dept("Q1"))
+
+
 if __name__ == "__main__":
     unittest.main()

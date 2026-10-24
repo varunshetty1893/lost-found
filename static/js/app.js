@@ -210,12 +210,27 @@
       if (de) de.required = !!v.date_label;
       var rs = $("select[name=role]", form);
       if (rs) rs.dispatchEvent(new Event("change", { bubbles: true }));
+      $$("[data-roster-dept]", form).forEach(function (s) { s.dispatchEvent(new Event("change")); });
       var reasonBox = $("input[name=reason]", dlg);
       if (reasonBox) { reasonBox.required = !!v.reason_required; reasonBox.minLength = v.reason_min || 0; }
       var ok = $("[data-confirm-btn]", dlg);
       if (ok) ok.className = "btn " + (v.danger ? "btn-danger-solid" : "btn-primary");
       dlg.showModal();
     });
+  });
+
+  /* Roster dialogs: department is a required dropdown; "Other" reveals a text box */
+  $$("[data-roster-dept]").forEach(function (sel) {
+    var other = $("[data-roster-dept-other]", sel.parentNode);
+    if (!other) return;
+    function sync(focus) {
+      var on = sel.value === "__other__";
+      other.hidden = !on; other.required = on;
+      if (!on) other.value = "";
+      if (on && focus) other.focus();
+    }
+    sel.addEventListener("change", function () { sync(true); });
+    sync(false);
   });
 
   /* Course end date: only students have one, and for them it is required */

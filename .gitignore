@@ -8,11 +8,16 @@ venv/
 .env
 .env.*
 !.env.example
+.admin_password
+.secret_key
 
 # Local database and everything users upload (ID cards, evidence and photos are private)
 *.db
+*.db*
 *.db-journal
 *.sqlite3
+*.backup*
+uploads/
 private_uploads/*/*
 !private_uploads/*/.gitkeep
 

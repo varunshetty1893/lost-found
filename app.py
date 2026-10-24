@@ -331,6 +331,7 @@ def roster_row_error(id_number, name, email, role, dept, end, require_end=False)
     if role not in ("student", "staff"):
         return "Choose whether the person is a student or a staff member."
     return (validate_id_number(id_number) or validate_name(name) or validate_email(email)
+            or ("Choose the department (or pick Other and type it)." if len(dept) < 2 else None)
             or ("Department is too long." if len(dept) > 80 else None)
             or (validate_end_date(end, required=require_end) if role == "student" else None))
 
@@ -437,8 +438,12 @@ def migrate_legacy(db):
     for ix in ("idx_items_status_type_created", "idx_items_category_status",
                "idx_claims_item_status_created", "idx_claims_claimer_status"):
         db.execute(f"DROP INDEX IF EXISTS {ix}")
+    # Without this, SQLite 3.26+ rewrites other tables' foreign keys (claim_evidence, custody_events, ...)
+    # to point at the temporary *_v1 tables, which are dropped below and leave those keys dangling.
+    db.execute("PRAGMA legacy_alter_table = ON")
     db.execute("ALTER TABLE claims RENAME TO claims_v1")
     db.execute("ALTER TABLE items RENAME TO items_v1")
+    db.execute("PRAGMA legacy_alter_table = OFF")
     db.executescript(SCHEMA)
     ensure_columns(db)
     ts = now()
@@ -485,6 +490,42 @@ def migrate_legacy(db):
     return True
 
 
+def repair_dangling_v1_references(db):
+    """Heal a database upgraded by an earlier build of migrate_legacy.
+
+    That build left foreign keys in claim_evidence, custody_events, handover_confirmations and
+    found_offers pointing at the dropped tables items_v1 / claims_v1, which made any DELETE FROM users
+    (for example the first step of registration) fail with "no such table: main.items_v1". The keys are
+    pointed back at items / claims. A backup copy of the database is written first. Returns True if repaired."""
+    tables = {r[0] for r in db.execute("SELECT name FROM sqlite_master WHERE type = 'table'")}
+    if {"items_v1", "claims_v1"} & tables:
+        return False                                   # an upgrade is mid-way; do not touch
+    broken = db.execute("SELECT type, name, sql FROM sqlite_master "
+                        "WHERE sql LIKE '%items_v1%' OR sql LIKE '%claims_v1%'").fetchall()
+    if not broken:
+        return False
+    db.commit()
+    backup_path = f"{DB_PATH}.backup-before-repair"
+    if not os.path.exists(backup_path):
+        backup = sqlite3.connect(backup_path)
+        try:
+            db.backup(backup)
+        finally:
+            backup.close()
+    version = db.execute("PRAGMA schema_version").fetchone()[0]
+    db.execute("PRAGMA writable_schema = ON")
+    for kind, name, sql in broken:
+        fixed = sql.replace("items_v1", "items").replace("claims_v1", "claims")
+        db.execute("UPDATE sqlite_master SET sql = ? WHERE type = ? AND name = ?", (fixed, kind, name))
+    db.execute(f"PRAGMA schema_version = {version + 1}")
+    db.execute("PRAGMA writable_schema = OFF")
+    db.commit()
+    if db.execute("PRAGMA integrity_check").fetchone()[0] != "ok":
+        raise RuntimeError(f"Database repair failed its integrity check. Your data is safe in {backup_path}.")
+    print(f"[database] Repaired {len(broken)} table definitions. A backup was saved as {backup_path}", flush=True)
+    return True
+
+
 def init_db():
     db = sqlite3.connect(DB_PATH, timeout=10)
     db.row_factory = sqlite3.Row
@@ -495,6 +536,7 @@ def init_db():
         ).fetchone() is None
         if not fresh:
             migrate_legacy(db)
+            repair_dangling_v1_references(db)
         db.executescript(SCHEMA)
         ensure_columns(db)
         db.executescript(POST_SCHEMA)
@@ -2144,7 +2186,7 @@ def admin_roster_add():
     f = request.form
     id_number = f.get("id_number", "").strip().upper()
     name, email = f.get("full_name", "").strip(), f.get("email", "").strip().lower()
-    role, dept = f.get("role", ""), f.get("department", "").strip()
+    role, dept = f.get("role", ""), chosen_department(f)
     end = f.get("academic_end", "").strip() if role == "student" else ""
     error = roster_row_error(id_number, name, email, role, dept, end, require_end=True)
     if error:
@@ -2168,7 +2210,7 @@ def admin_roster_edit(roster_id):
     name = request.form.get("full_name", "").strip()
     email = request.form.get("email", "").strip().lower()
     role = request.form.get("role", "")
-    dept = request.form.get("department", "").strip()[:80]
+    dept = chosen_department(request.form)
     end = request.form.get("academic_end", "").strip() if role == "student" else ""
     # An unchanged end date is accepted even if it is already in the past (the admin may be fixing something else).
     unchanged = role == "student" and end == row["academic_end"]

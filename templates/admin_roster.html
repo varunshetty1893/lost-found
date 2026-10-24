@@ -1,9 +1,8 @@
 {% extends "admin_base.html" %}
-{% from "_macros.html" import icon, role_badge %}
+{% from "_macros.html" import icon, role_badge, roster_dept_field %}
 {% from "_admin_macros.html" import page_head, pager, status_pill, people_tabs %}
 {% block title %}People · Campus Roster{% endblock %}
 {% block admin %}
-<datalist id="dept-suggestions">{% for _g, opts, _a in department_groups() %}{% for v, _t in opts %}<option value="{{ v }}">{% endfor %}{% endfor %}</datalist>
 {% call page_head('People', 'The college\'s official roster of students and staff. Only people on it can register automatically (' ~ total_all ~ ' on file).') %}
   <a class="btn btn-small" href="{{ url_for('admin_roster_template') }}">{{ icon('download') }} Template</a>
   <a class="btn btn-small" href="{{ url_for('admin_roster_export', **filters) }}">{{ icon('download') }} Export CSV</a>
@@ -44,7 +43,7 @@
           <label for="ra-role">Role</label>
           <select id="ra-role" name="role"><option value="student">Student</option><option value="staff">Staff</option></select>
         </div>
-        <div class="fld"><label for="ra-dept">Department <span class="opt">(optional)</span></label><input id="ra-dept" name="department" list="dept-suggestions" maxlength="80" placeholder="e.g. Computer Science" autocomplete="off"></div>
+        {{ roster_dept_field("ra") }}
         <div class="fld span2" data-end-field><label for="ra-end">Course end date <span class="req" aria-hidden="true"> *</span></label><input id="ra-end" name="academic_end" type="date" min="{{ today_iso() }}" data-end-input><span class="hint">Last day of the student's course, for example 20 May 2027. The account is closed automatically after it.</span></div>
       </div>
       <p class="hint-line">{{ icon('info') }} An ID that is already on the list will be updated instead of duplicated.</p>

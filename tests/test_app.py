@@ -857,5 +857,83 @@ class AdminConsoleTests(Base):
         self.assertIn("ok", body)
 
 
+class LegacyUpgradeTests(unittest.TestCase):
+    """A first-release database must upgrade without leaving foreign keys on the dropped *_v1 tables
+    (that made registration fail with 'no such table: main.items_v1')."""
+
+    def setUp(self):
+        import sqlite3
+        self.sqlite3 = sqlite3
+        fd, self.path = tempfile.mkstemp(suffix=".db")
+        os.close(fd)
+        os.remove(self.path)
+        self._old_path = appmod.DB_PATH
+        appmod.DB_PATH = self.path
+        appmod.init_db()                      # current schema, including the child tables
+        c = sqlite3.connect(self.path)
+        c.execute("DROP TABLE items")
+        c.execute("DROP TABLE claims")
+        c.execute("CREATE TABLE items (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, type TEXT, title TEXT, "
+                  "category TEXT, description TEXT, location TEXT, event_date TEXT, photo TEXT, status TEXT DEFAULT 'open', "
+                  "custody TEXT DEFAULT 'finder', created_at TEXT, returned_at TEXT)")
+        c.execute("CREATE TABLE claims (id INTEGER PRIMARY KEY AUTOINCREMENT, item_id INTEGER, claimer_id INTEGER, "
+                  "message TEXT, status TEXT, created_at TEXT)")
+        uid = c.execute("SELECT id FROM users LIMIT 1").fetchone()[0]
+        c.execute("INSERT INTO items (user_id, type, title, category, description, location, event_date, created_at) "
+                  "VALUES (?, 'found', 'Old wallet', 'Wallets', 'x', 'Canteen', '2026-01-01', '2026-01-02 10:00:00')", (uid,))
+        c.commit()
+        c.close()
+
+    def tearDown(self):
+        appmod.DB_PATH = self._old_path
+        for suffix in ("", ".backup-before-repair"):
+            if os.path.exists(self.path + suffix):
+                os.remove(self.path + suffix)
+
+    def check(self):
+        c = self.sqlite3.connect(self.path)
+        c.execute("PRAGMA foreign_keys = ON")
+        try:
+            dangling = [r[0] for r in c.execute("SELECT name FROM sqlite_master WHERE sql LIKE '%_v1%'")]
+            c.execute("DELETE FROM users WHERE status = 'pending_email' AND (email = 'x' OR id_number = 'y')")
+            titles = [r[0] for r in c.execute("SELECT title FROM items")]
+            return dangling, titles, c.execute("PRAGMA foreign_key_check").fetchall()
+        finally:
+            c.close()
+
+    def test_upgrade_leaves_no_dangling_foreign_keys(self):
+        appmod.init_db()
+        dangling, titles, fk = self.check()
+        self.assertEqual(dangling, [])
+        self.assertEqual(titles, ["Old wallet"])
+        self.assertEqual(fk, [])
+        self.assertFalse(os.path.exists(self.path + ".backup-before-repair"))
+
+    def test_already_damaged_database_is_repaired_with_a_backup(self):
+        appmod.init_db()
+        # put the old damage back: point the child tables at tables that no longer exist
+        c = self.sqlite3.connect(self.path)
+        version = c.execute("PRAGMA schema_version").fetchone()[0]
+        c.execute("PRAGMA writable_schema = ON")
+        for name, sql in c.execute("SELECT name, sql FROM sqlite_master WHERE type = 'table' "
+                                   "AND sql LIKE '%REFERENCES items(%'").fetchall():
+            c.execute("UPDATE sqlite_master SET sql = ? WHERE name = ?", (sql.replace("REFERENCES items(", "REFERENCES items_v1("), name))
+        c.execute(f"PRAGMA schema_version = {version + 1}")
+        c.execute("PRAGMA writable_schema = OFF")
+        c.commit()
+        c.close()
+        c = self.sqlite3.connect(self.path)
+        c.execute("PRAGMA foreign_keys = ON")
+        with self.assertRaises(self.sqlite3.OperationalError):
+            c.execute("DELETE FROM users WHERE id = -1")
+        c.close()
+
+        appmod.init_db()
+        dangling, titles, fk = self.check()
+        self.assertEqual(dangling, [])
+        self.assertEqual(titles, ["Old wallet"])
+        self.assertTrue(os.path.exists(self.path + ".backup-before-repair"))
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=1)
