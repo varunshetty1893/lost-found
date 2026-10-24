@@ -76,9 +76,11 @@ dialog.sheet[open] { animation: sheet-in .25s cubic-bezier(.2, .8, .2, 1); }
   .tab-badge { position: absolute; top: .15rem; left: calc(50% + .3rem); min-width: 1.1rem; padding: 0 .3rem; border-radius: 99px; background: var(--lost); color: #fff; font: 800 .66rem/1.1rem var(--font); text-align: center; }
   .js .flashes { left: .75rem; right: .75rem; width: auto; bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom) + .6rem); }
   body.ep-post_item .flashes { bottom: calc(5rem + env(safe-area-inset-bottom)); }
-  .site-footer { padding: 1.5rem 0 1rem; }
-  body.has-tabbar .site-footer .footer-grid { display: none; }
-  body.has-tabbar .footer-base { margin-top: 0; border-top: 0; padding-top: 0; flex-direction: column; gap: .15rem; text-align: center; }
+  .site-footer { display: none !important; }
+}
+
+@media (max-width: 768px) {
+  .site-footer { display: none !important; }
 }
 
 /* ---------- user site: phone layout ---------- */

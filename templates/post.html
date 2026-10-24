@@ -89,21 +89,88 @@
       {{ field_error('private_details', error_field, 'Keep the private details under 500 characters.') }}
     </div>
 
-    {% if not editing %}<div class="field {{ 'has-error' if error_field == 'photo' }}">
-      <span class="field-label">Photo <span class="opt">(optional)</span></span>
-      <div class="dropzone" data-dropzone>
-        <input type="file" name="photo" accept="image/png,image/jpeg,image/gif,image/webp" aria-label="Choose a photo, optional" aria-describedby="photo-hint">
-        <div data-dz-empty>{{ icon('upload') }}<strong>Tap to add a photo</strong><span class="small">or drag and drop &middot; PNG, JPG, GIF or WEBP, up to 5 MB</span></div>
-        <div class="dropzone-preview" data-dz-preview hidden>
-          <img alt="Preview of the selected photo" src="">
-          <div class="meta"><strong data-dz-name></strong></div>
-          <button type="button" class="btn btn-small remove-file" data-dz-remove>{{ icon('x') }} Remove</button>
+    {% if not editing %}<div class="field {{ 'has-error' if error_field == 'photo' }}" id="photo-upload-section">
+      <div class="field-row">
+        <label for="f-photo-input">Photos <span class="opt">(2 to 5 pictures recommended, max 5)</span></label>
+        <span class="small muted" id="photo-count-badge">0 / 5 photos</span>
+      </div>
+      <div class="dropzone" data-dropzone id="photo-dropzone">
+        <input type="file" id="f-photo-input" name="photo" accept="image/png,image/jpeg,image/webp" multiple aria-label="Upload photos (2 to 5 photos)" aria-describedby="photo-hint">
+        <div data-dz-empty>
+          {{ icon('upload') }}
+          <strong>Tap to add photos</strong>
+          <span class="small">Upload 2 to 5 pictures (PNG, JPG, WEBP &middot; up to 5 MB each) &middot; You can crop &amp; draw on them</span>
         </div>
       </div>
-      <span class="field-hint" id="photo-hint">A clear photo helps owners recognise their item. Avoid photos showing personal documents.</span>
+      <div class="photo-preview-grid" id="photo-preview-grid" hidden></div>
+      <span class="field-hint" id="photo-hint">Upload 2 to 5 clear pictures showing different angles. Click &ldquo;Crop &amp; Pencil&rdquo; on any picture to highlight or circle specific details with a pencil mark!</span>
       <div class="field-error" data-dz-error hidden role="alert"></div>
-      {% if error_field == 'photo' %}<div class="field-error" role="alert">{{ icon('alert') }}<span>Please choose a valid image (PNG, JPG, GIF or WEBP, up to 5 MB).</span></div>{% endif %}
-    </div>{% endif %}
+      {% if error_field == 'photo' %}<div class="field-error" role="alert">{{ icon('alert') }}<span>Please choose valid images (PNG, JPG, or WEBP, up to 5 MB).</span></div>{% endif %}
+    </div>
+
+    <!-- Crop & Pencil Editor Modal -->
+    <dialog id="photo-editor-modal" class="editor-modal" aria-labelledby="editor-title">
+      <div class="editor-modal-content">
+        <header class="editor-header">
+          <div class="editor-title-wrap">
+            <h3 id="editor-title">{{ icon('sparkles') }} Crop &amp; Mark with Pencil</h3>
+            <span class="small muted">Pan/zoom to crop (4:3 clear size) or use the pencil to circle &amp; mark item marks</span>
+          </div>
+          <button type="button" class="btn btn-small btn-ghost" id="editor-close-btn" aria-label="Close editor">{{ icon('x') }}</button>
+        </header>
+
+        <div class="editor-toolbar">
+          <div class="toolbar-group">
+            <button type="button" class="tool-btn active" data-tool="pencil" id="tool-pencil-btn" title="Pencil / Draw">{{ icon('sparkles') }} Pencil</button>
+            <button type="button" class="tool-btn" data-tool="pan" id="tool-pan-btn" title="Move &amp; Crop">{{ icon('move') if icon('move') else icon('search') }} Crop / Pan</button>
+          </div>
+
+          <div class="toolbar-group color-palette" id="color-palette" title="Pencil Color">
+            <button type="button" class="color-dot active" data-color="#f96a46" style="background:#f96a46;" aria-label="Coral Orange" title="Coral"></button>
+            <button type="button" class="color-dot" data-color="#e63946" style="background:#e63946;" aria-label="Red" title="Red"></button>
+            <button type="button" class="color-dot" data-color="#ffb703" style="background:#ffb703;" aria-label="Yellow" title="Yellow"></button>
+            <button type="button" class="color-dot" data-color="#2a9d8f" style="background:#2a9d8f;" aria-label="Teal" title="Teal"></button>
+            <button type="button" class="color-dot" data-color="#ffffff" style="background:#ffffff; border:1px solid #ccc;" aria-label="White" title="White"></button>
+            <button type="button" class="color-dot" data-color="#0b3249" style="background:#0b3249;" aria-label="Navy" title="Navy"></button>
+          </div>
+
+          <div class="toolbar-group stroke-sizes">
+            <label class="small muted" for="stroke-size-select">Size:</label>
+            <select id="stroke-size-select" class="btn-small">
+              <option value="3">Fine (3px)</option>
+              <option value="6" selected>Medium (6px)</option>
+              <option value="12">Bold (12px)</option>
+            </select>
+          </div>
+
+          <div class="toolbar-group">
+            <button type="button" class="btn btn-small" id="editor-undo-btn" title="Undo stroke">{{ icon('undo') if icon('undo') else '↶' }} Undo</button>
+            <button type="button" class="btn btn-small btn-ghost" id="editor-clear-btn" title="Clear drawings">Clear Marks</button>
+          </div>
+        </div>
+
+        <div class="editor-canvas-container" id="editor-canvas-container">
+          <canvas id="photo-editor-canvas" width="800" height="600"></canvas>
+          <div class="editor-hint-overlay">
+            <span id="canvas-mode-hint">✏️ Draw with pencil directly on the image to highlight marks, scratches or logos</span>
+          </div>
+        </div>
+
+        <div class="editor-zoom-bar">
+          <label class="small muted" for="editor-zoom-slider">Zoom:</label>
+          <input type="range" id="editor-zoom-slider" min="1" max="3" step="0.05" value="1">
+          <button type="button" class="btn btn-small btn-ghost" id="editor-reset-zoom-btn">Reset</button>
+        </div>
+
+        <footer class="editor-footer">
+          <span class="small muted">Exports to standard 800&times;600 clear size.</span>
+          <div class="editor-footer-actions">
+            <button type="button" class="btn" id="editor-cancel-btn">Cancel</button>
+            <button type="button" class="btn btn-primary" id="editor-save-btn">Apply &amp; Save</button>
+          </div>
+        </footer>
+      </div>
+    </dialog>{% endif %}
 
     <div class="form-actions">
       <button class="btn btn-primary" type="submit" data-loading-text="Saving…"><span data-label>{{ 'Save changes' if editing else 'Submit report' }}</span></button>

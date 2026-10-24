@@ -10,8 +10,20 @@
   <span aria-current="page">{{ item['title'] }}</span>
 </nav>
 
-<article class="detail">
-  <div class="detail-photo">{{ photo_or_placeholder(item, big=True) }}</div>
+  <div class="detail-photo">
+    <div class="detail-photo-main" id="detail-photo-wrapper">
+      {{ photo_or_placeholder(item, big=True) }}
+    </div>
+    {% if photos and photos|length > 1 %}
+    <div class="photo-gallery-thumbs" role="tablist" aria-label="Item photos">
+      {% for p in photos %}
+      <button type="button" class="gallery-thumb {{ 'active' if loop.first }}" data-gallery-thumb data-src="{{ url_for('media', name=p) }}" aria-label="View photo {{ loop.index }}">
+        <img src="{{ url_for('media', name=p) }}" alt="Thumbnail {{ loop.index }}">
+      </button>
+      {% endfor %}
+    </div>
+    {% endif %}
+  </div>
   <div class="detail-info">
     <div class="tags">{{ type_tag(item['type']) }}{{ status_tag(item['status']) }}{% if item['status'] in ('active', 'returned') %}{{ custody_tag(item) }}{% endif %}</div>
     <h1>{{ item['title'] }}</h1>

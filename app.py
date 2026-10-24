@@ -233,10 +233,17 @@ CREATE TABLE IF NOT EXISTS login_attempts (
     email TEXT NOT NULL,
     ts TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS item_photos (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    item_id INTEGER NOT NULL REFERENCES items(id) ON DELETE CASCADE,
+    filename TEXT NOT NULL,
+    created_at TEXT NOT NULL
+);
 CREATE INDEX IF NOT EXISTS idx_items_status_type_created ON items(status, type, created_at);
 CREATE INDEX IF NOT EXISTS idx_items_category_status ON items(category, status);
 CREATE INDEX IF NOT EXISTS idx_items_custody ON items(custody_status, status);
 CREATE INDEX IF NOT EXISTS idx_items_user ON items(user_id);
+CREATE INDEX IF NOT EXISTS idx_item_photos_item ON item_photos(item_id);
 CREATE INDEX IF NOT EXISTS idx_claims_item_status_created ON claims(item_id, status, created_at);
 CREATE INDEX IF NOT EXISTS idx_claims_claimer_status ON claims(claimer_id, status);
 CREATE UNIQUE INDEX IF NOT EXISTS uq_claims_one_approved ON claims(item_id) WHERE status = 'approved';
@@ -607,7 +614,7 @@ def notify(user_id, message, link="", kind="info"):
 
 
 def build_html_email(subject, body, campus_name=None):
-    """Creates a modern, responsive HTML email matching campus branding."""
+    """Creates a modern, responsive HTML email matching campus branding and UI design."""
     campus = campus_name or CAMPUS_NAME
     otp_match = re.search(r"\b(\d{6})\b", body)
     otp_code = otp_match.group(1) if otp_match else None
@@ -623,32 +630,32 @@ def build_html_email(subject, body, campus_name=None):
         cleaned_paragraphs.append(l)
 
     paragraphs_html = "".join(
-        f'<p style="margin: 0 0 16px; color: #334155; font-size: 15px; line-height: 1.6;">{html.escape(p)}</p>'
+        f'<p style="margin: 0 0 16px; color: #334155; font-size: 15px; line-height: 1.65;">{html.escape(p)}</p>'
         for p in cleaned_paragraphs
     )
 
     otp_block = ""
     if otp_code:
         otp_block = f"""
-        <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="margin: 24px 0; background: #f8fafc; border: 1.5px solid #cbd5e1; border-radius: 12px; text-align: center;">
+        <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="margin: 24px 0; background: #f8fafc; border: 2px dashed #94a3b8; border-radius: 14px; text-align: center;">
           <tr>
-            <td style="padding: 24px 16px;">
-              <div style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; color: #64748b; margin-bottom: 8px;">
+            <td style="padding: 26px 16px;">
+              <div style="display: inline-block; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 1.5px; color: #0b3249; background: #e0f2fe; padding: 4px 12px; border-radius: 99px; margin-bottom: 12px;">
                 Verification Code
               </div>
-              <div style="font-family: 'SF Mono', Consolas, 'Liberation Mono', Menlo, Courier, monospace; font-size: 38px; font-weight: 800; letter-spacing: 10px; color: #0b3249; margin: 6px 0 10px; text-indent: 10px;">
+              <div style="font-family: 'SF Mono', Consolas, 'Liberation Mono', Menlo, Courier, monospace; font-size: 40px; font-weight: 900; letter-spacing: 12px; color: #0b3249; margin: 8px 0 12px; text-indent: 12px;">
                 {otp_code}
               </div>
-              <div style="display: inline-block; font-size: 12px; color: #475569; background: #e2e8f0; padding: 4px 12px; border-radius: 20px; font-weight: 500;">
-                ⏱ Expires in {OTP_MINUTES} minutes · Single-use only
+              <div style="display: inline-block; font-size: 12px; color: #475569; background: #e2e8f0; padding: 5px 14px; border-radius: 20px; font-weight: 600;">
+                ⏱ Expires in {OTP_MINUTES} minutes &middot; Single-use only
               </div>
             </td>
           </tr>
         </table>
-        <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="margin-bottom: 20px; background: #f1f5f9; border-left: 4px solid #0b3249; border-radius: 4px;">
+        <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="margin-bottom: 22px; background: #fff8f6; border-left: 4px solid #f96a46; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.03);">
           <tr>
-            <td style="padding: 12px 16px; font-size: 13px; color: #475569; line-height: 1.5;">
-              <strong>Security tip:</strong> Never share this code with anyone. Campus staff will never ask for your verification code.
+            <td style="padding: 12px 16px; font-size: 13px; color: #64748b; line-height: 1.5;">
+              <strong style="color: #0b3249;">Security notice:</strong> Never share this code with anyone. Campus staff and administrators will never ask for your verification code.
             </td>
           </tr>
         </table>
@@ -662,19 +669,24 @@ def build_html_email(subject, body, campus_name=None):
   <title>{html.escape(subject)}</title>
 </head>
 <body style="margin: 0; padding: 0; background-color: #f1f5f9; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; -webkit-font-smoothing: antialiased;">
-  <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="background-color: #f1f5f9; padding: 36px 12px;">
+  <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="background-color: #f1f5f9; padding: 40px 12px;">
     <tr>
       <td align="center">
-        <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="max-width: 540px; background: #ffffff; border-radius: 14px; overflow: hidden; box-shadow: 0 4px 16px rgba(15, 23, 42, 0.08); border: 1px solid #e2e8f0;">
+        <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="max-width: 550px; background: #ffffff; border-radius: 18px; overflow: hidden; box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.08), 0 8px 10px -6px rgba(15, 23, 42, 0.03); border: 1px solid #e2e8f0;">
           <tr>
-            <td style="background: linear-gradient(135deg, #0b3249 0%, #174b6b 100%); padding: 26px 32px; text-align: left;">
+            <td style="background: linear-gradient(135deg, #0b3249 0%, #164663 100%); padding: 28px 32px; text-align: left;">
               <table role="presentation" cellpadding="0" cellspacing="0" width="100%">
                 <tr>
-                  <td>
-                    <div style="color: #ffffff; font-size: 18px; font-weight: 800; letter-spacing: -0.02em;">
+                  <td width="42" valign="middle" style="padding-right: 14px;">
+                    <div style="width: 38px; height: 38px; border-radius: 10px; background: #f96a46; text-align: center; line-height: 38px; color: #ffffff; font-size: 20px; font-weight: 800; box-shadow: 0 4px 10px rgba(249, 106, 70, 0.35);">
+                      &#128269;
+                    </div>
+                  </td>
+                  <td valign="middle">
+                    <div style="color: #ffffff; font-size: 19px; font-weight: 800; letter-spacing: -0.02em; line-height: 1.2;">
                       {html.escape(campus)} Lost &amp; Found
                     </div>
-                    <div style="color: #94a3b8; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; margin-top: 3px;">
+                    <div style="color: #a5f3fc; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.2px; margin-top: 3px;">
                       Verified Campus Members
                     </div>
                   </td>
@@ -683,22 +695,22 @@ def build_html_email(subject, body, campus_name=None):
             </td>
           </tr>
           <tr>
-            <td style="padding: 32px 32px 24px;">
-              <h1 style="margin: 0 0 16px; font-size: 22px; font-weight: 700; color: #0f172a; letter-spacing: -0.02em;">
+            <td style="padding: 34px 32px 26px;">
+              <h1 style="margin: 0 0 18px; font-size: 22px; font-weight: 800; color: #0b3249; letter-spacing: -0.02em; line-height: 1.3;">
                 {html.escape(subject)}
               </h1>
-              {f'<p style="margin: 0 0 16px; font-size: 16px; font-weight: 600; color: #0f172a;">{html.escape(greeting)}</p>' if greeting else ''}
+              {f'<p style="margin: 0 0 16px; font-size: 16px; font-weight: 700; color: #0f172a;">{html.escape(greeting)}</p>' if greeting else ''}
               {paragraphs_html}
               {otp_block}
             </td>
           </tr>
           <tr>
-            <td style="background: #f8fafc; border-top: 1px solid #e2e8f0; padding: 20px 32px; text-align: center;">
+            <td style="background: #f8fafc; border-top: 1px solid #e2e8f0; padding: 22px 32px; text-align: center;">
               <p style="margin: 0 0 6px; font-size: 12px; color: #64748b; line-height: 1.5;">
-                This is an automated security message from <strong>{html.escape(campus)} Lost &amp; Found</strong>.
+                This is an automated notification from <strong>{html.escape(campus)} Lost &amp; Found</strong>.
               </p>
               <p style="margin: 0; font-size: 11px; color: #94a3b8;">
-                If you did not initiate this request, you can safely ignore this email.
+                Open to verified students and staff only. Keep campus honest and safe.
               </p>
             </td>
           </tr>
@@ -1499,22 +1511,38 @@ def post_item():
                 services.check_report_rate(get_db(), user)
             except WorkflowError as exc:
                 error, field = exc.message, None
-        photo = None
-        if error is None:
+        photos = []
+        raw_files = request.files.getlist("photo")
+        if not raw_files and request.files.get("photo"):
+            raw_files = [request.files.get("photo")]
+        raw_files = [f for f in raw_files if f and getattr(f, "filename", None)]
+        if len(raw_files) > 5:
+            error, field = "You can upload at most 5 pictures.", "photo"
+        if error is None and raw_files:
             try:
-                photo = save_image(request.files.get("photo"), ITEM_DIR)
+                for rf in raw_files:
+                    saved = save_image(rf, ITEM_DIR)
+                    if saved:
+                        photos.append(saved)
             except ValueError as exc:
+                for p in photos:
+                    delete_file(ITEM_DIR, p)
                 error, field = str(exc), "photo"
+        primary_photo = photos[0] if photos else None
         if error is None:
             try:
                 item_id = services.create_report(
                     get_db(), user, kind=v["kind"], title=v["title"], category=v["category"],
                     description=v["description"], private_details=v["private_details"], location=v["location"],
-                    event_date=v["event_date"], photo=photo, handover_pref=v["handover"],
+                    event_date=v["event_date"], photo=primary_photo, handover_pref=v["handover"],
                     unsafe=v["unsafe"], moderation_required=MODERATION_REQUIRED,
                     contact=v["contact"])
+                for p in photos:
+                    run("INSERT INTO item_photos (item_id, filename, created_at) VALUES (?, ?, ?)",
+                        item_id, p, now())
             except WorkflowError as exc:
-                delete_file(ITEM_DIR, photo)
+                for p in photos:
+                    delete_file(ITEM_DIR, p)
                 error, field = exc.message, None
         if error:
             flash(error, "error")
@@ -1619,7 +1647,10 @@ def item_detail(item_id):
     can_offer = (not found and not owner and item["status"] == "active" and my_offer is None)
     can_claim = (found and not owner and item["status"] == "active" and my_claim is None
                  and item["custody_status"] not in ("returned", "disputed") and not item["approved_claim_id"])
-    return render_template("item.html", item=item, claims=claims, my_claim=my_claim, my_evidence=my_evidence,
+    photos = [r["filename"] for r in qa("SELECT filename FROM item_photos WHERE item_id = ? ORDER BY id", item_id)]
+    if not photos and item["photo"]:
+        photos = [item["photo"]]
+    return render_template("item.html", item=item, photos=photos, claims=claims, my_claim=my_claim, my_evidence=my_evidence,
                            matches=matches, owner=owner, staff=staff, approved=approved, claimant_is_me=claimant_is_me,
                            participant=participant, mode=mode, counterpart=counterpart, confirmations=confirmations,
                            my_confirmation=my_confirmation, stage=stage, events=events, can_claim=can_claim,
