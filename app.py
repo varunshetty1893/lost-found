@@ -1428,14 +1428,19 @@ def evidence_file(evidence_id):
     return resp
 
 
-def _report_form(f):
+def _report_form(f, editing=None):
     """Read and validate the shared report fields. Returns (values, error, field)."""
+    raw_handover = f.get("handover")
+    handover = (raw_handover if raw_handover not in (None, "") else "direct").strip()
+    contact = f.get("contact", "").strip()
+    if not contact and editing and editing["contact"]:
+        contact = editing["contact"]
     v = {
         "kind": f.get("type", ""), "title": f.get("title", "").strip(), "category": f.get("category", ""),
         "description": f.get("description", "").strip(), "private_details": f.get("private_details", "").strip(),
         "location": f.get("location", "").strip(), "event_date": f.get("event_date", ""),
-        "handover": f.get("handover", "direct"), "unsafe": f.get("unsafe") == "1",
-        "contact": f.get("contact", "").strip(),
+        "handover": handover, "unsafe": f.get("unsafe") == "1",
+        "contact": contact,
     }
     try:
         parsed = datetime.strptime(v["event_date"], "%Y-%m-%d").date()
@@ -1462,12 +1467,14 @@ def _report_form(f):
         error, field = "Enter a valid date.", "event_date"
     elif parsed > date.today():
         error, field = "The date cannot be in the future.", "event_date"
-    elif v["kind"] == "found" and v["handover"] not in ("admin", "direct"):
-        error, field = "Choose how you want to hand over the found item.", "handover"
-    elif v["kind"] == "lost":
+    elif v["handover"] not in ("admin", "direct"):
+        error, field = "Choose how you want to hand over the item.", "handover"
+    elif v["handover"] == "direct":
         problem = services.contact_problem(v["contact"])
         if problem:
             error, field = problem, "contact"
+    else:
+        v["contact"] = ""
     return v, error, field
 
 
@@ -1503,9 +1510,9 @@ def post_item():
                 item_id = services.create_report(
                     get_db(), user, kind=v["kind"], title=v["title"], category=v["category"],
                     description=v["description"], private_details=v["private_details"], location=v["location"],
-                    event_date=v["event_date"], photo=photo, handover_pref=v["handover"] if v["kind"] == "found" else None,
+                    event_date=v["event_date"], photo=photo, handover_pref=v["handover"],
                     unsafe=v["unsafe"], moderation_required=MODERATION_REQUIRED,
-                    contact=v["contact"] if v["kind"] == "lost" else "")
+                    contact=v["contact"])
             except WorkflowError as exc:
                 delete_file(ITEM_DIR, photo)
                 error, field = exc.message, None
@@ -1536,19 +1543,19 @@ def edit_item(item_id):
         return redirect(url_for("item_detail", item_id=item_id))
     today = date.today().isoformat()
     if request.method == "POST":
-        v, error, field = _report_form({**request.form, "type": item["type"]})
+        v, error, field = _report_form({**request.form, "type": item["type"]}, editing=item)
         if error is None:
             if act(services.edit_report, user, item_id, title=v["title"], category=v["category"],
                    description=v["description"], private_details=v["private_details"], location=v["location"],
-                   event_date=v["event_date"], handover_pref=v["handover"] if item["type"] == "found" else None,
-                   contact=v["contact"] if item["type"] == "lost" else "", ok="Report updated."):
+                   event_date=v["event_date"], handover_pref=v["handover"],
+                   contact=v["contact"], ok="Report updated."):
                 return redirect(url_for("item_detail", item_id=item_id))
             return redirect(url_for("item_detail", item_id=item_id))
         flash(error, "error")
         return render_template("post.html", form=request.form, today=today, error_field=field, editing=item)
     form = {"type": item["type"], "title": item["title"], "category": item["category"],
             "description": item["description"], "private_details": item["private_details"],
-            "location": item["location"], "event_date": item["event_date"], "handover": item["handover_pref"],
+            "location": item["location"], "event_date": item["event_date"], "handover": item["handover_pref"] or "direct",
             "contact": item["contact"]}
     return render_template("post.html", form=form, today=today, error_field=None, editing=item)
 

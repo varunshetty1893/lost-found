@@ -132,18 +132,34 @@
     ["dragleave", "drop"].forEach(function (ev) { zone.addEventListener(ev, function () { zone.classList.remove("drag"); }); });
   });
 
-  /* Report form: lost/found toggle changes wording and shows the custody field only for found items */
+  /* Report form: lost/found toggle and Option A/Option B contact visibility */
   var report = $("[data-report-form]");
   if (report) {
-    var radios = $$("input[name=type]", report), custody = $("[data-custody]", report);
+    var radios = $$("input[name=type]", report);
+    var handoverRadios = $$("input[name=handover]", report);
+    var contactWrap = $("[data-contact-wrapper]", report);
+    var contactInput = $("[data-contact-input]", report);
+
     var sync = function () {
       var kind = (radios.filter(function (r) { return r.checked; })[0] || {}).value || "lost";
-      $$("[data-for]").forEach(function (el) { el.hidden = el.getAttribute("data-for") !== kind; });
-      $$("[data-required-for]").forEach(function (el) { el.required = el.getAttribute("data-required-for") === kind; });
-      if (custody) { custody.hidden = kind !== "found"; $$("input", custody).forEach(function (i) { i.disabled = kind !== "found"; }); }
+      var handover = (handoverRadios.filter(function (r) { return r.checked; })[0] || {}).value || "direct";
+
+      $$("[data-for]", report).forEach(function (el) {
+        el.hidden = el.getAttribute("data-for") !== kind;
+      });
+
+      if (contactWrap && contactInput) {
+        var isDirect = handover === "direct";
+        contactWrap.hidden = !isDirect;
+        contactInput.required = isDirect;
+      }
+
       document.title = document.title.replace(/Report a (lost|found) item/, "Report a " + kind + " item");
     };
-    radios.forEach(function (r) { r.addEventListener("change", sync); }); sync();
+
+    radios.forEach(function (r) { r.addEventListener("change", sync); });
+    handoverRadios.forEach(function (r) { r.addEventListener("change", sync); });
+    sync();
   }
 
   /* Filters: apply select changes immediately (the Search button remains as a fallback) */

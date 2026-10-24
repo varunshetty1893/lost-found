@@ -20,6 +20,29 @@
       <div><dt><span class="fact-icon">{{ category_icon(item['category']) }}</span>Category</dt><dd>{{ item['category'] }}</dd></div>
       <div><dt><span class="fact-icon">{{ icon('calendar') }}</span>{{ 'Date lost' if not found else 'Date found' }}</dt><dd>{{ item['event_date']|pretty_date }}</dd></div>
       <div><dt><span class="fact-icon">{{ icon('pin') }}</span>{{ 'Last seen' if not found else 'Found at' }}</dt><dd>{{ item['location'] }}</dd></div>
+      <div class="wide"><dt><span class="fact-icon">{{ icon('handshake') if item['handover_pref'] == 'direct' else icon('building') }}</span>Handover option</dt>
+        <dd>
+          {% if item['handover_pref'] == 'admin' %}
+            <strong>Option B — College office</strong>
+            <span class="muted small fact-note">
+              {% if found %}
+                Contact details private · Finder hands over item to college office
+              {% else %}
+                Contact details private · Finder submits item to college office for verification
+              {% endif %}
+            </span>
+          {% else %}
+            <strong>Option A — Direct contact</strong>
+            <span class="muted small fact-note">
+              {% if found %}
+                Finder shares contact details directly so owner can reach them
+              {% else %}
+                Owner shares contact details directly so finder can reach them
+              {% endif %}
+            </span>
+          {% endif %}
+        </dd>
+      </div>
       {% if found %}
       <div><dt><span class="fact-icon">{{ icon('box') }}</span>Post status</dt><dd>{{ item['status']|report_label }}</dd></div>
       <div class="wide"><dt><span class="fact-icon">{{ icon('shield') }}</span>Where the item is</dt><dd>{{ item['custody_status']|custody_label }}{% if item['custody_status'] == 'admin_handover_requested' %}<span class="muted small fact-note">The finder will give it to the college office. It is not with the college until staff say they have it.</span>{% endif %}</dd></div>
@@ -61,17 +84,35 @@
 
 {# ---------------------------------------------------------------- custody: finder guidance #}
 {% if found and owner and item['status'] == 'active' %}
-  {% if item['custody_status'] == 'admin_handover_requested' %}
-  <div class="wf-card"><h3>{{ icon('box') }} Next step: bring the item to the college office</h3>
-    <p>Show the code <strong>{{ item['ref_code'] }}</strong> to a staff member. The item is with the college only after staff say they have it. Please keep it safe until then.</p>
-    {% if not item['unsafe'] and not approved %}<div class="wf-actions"><form method="post" action="{{ url_for('item_pref', item_id=item['id']) }}">{{ csrf() }}<input type="hidden" name="handover" value="direct"><button class="btn btn-small" type="submit">I want to give it back myself</button></form></div>{% endif %}
+  {% if item['handover_pref'] == 'admin' or item['custody_status'] == 'admin_handover_requested' %}
+  <div class="wf-card"><h3>{{ icon('box') }} Option B: Bring the item to the college office</h3>
+    <p>Show the code <strong>{{ item['ref_code'] }}</strong> to a staff member. Your contact details are kept private. The item is with the college only after staff say they have it. Please keep it safe until then.</p>
+    {% if not item['unsafe'] and not approved %}<div class="wf-actions"><form method="post" action="{{ url_for('item_pref', item_id=item['id']) }}">{{ csrf() }}<input type="hidden" name="handover" value="direct"><button class="btn btn-small" type="submit">Switch to Option A (Direct contact)</button></form></div>{% endif %}
     {% if item['unsafe'] %}<p class="small"><strong>This item may be unsafe.</strong> Please do not touch it again. Staff will call campus security.</p>{% endif %}</div>
   {% elif item['custody_status'] == 'with_finder' %}
-  <div class="wf-card"><h3>{{ icon('shield') }} You are keeping this item</h3>
-    <p>When someone says it is theirs, check their words against details only you know. If you are not sure, send it to staff. You do not have to go to the office{% if item['risk_level'] == 'high' %}, but this item is high risk. Staff must check the owner, and the item must go to the college office{% endif %}.</p>
-    {% if not approved %}<div class="wf-actions"><form method="post" action="{{ url_for('item_pref', item_id=item['id']) }}">{{ csrf() }}<input type="hidden" name="handover" value="admin"><button class="btn btn-small" type="submit">I want to give it to the college office instead</button></form></div>{% endif %}</div>
+  <div class="wf-card"><h3>{{ icon('shield') }} Option A: You are keeping this item (Direct contact)</h3>
+    <p>You chose Option A (Direct contact). Your contact details are displayed on the post so the owner can reach you directly. When someone says it is theirs, check their words against details only you know. You do not have to go to the office{% if item['risk_level'] == 'high' %}, but this item is high risk. Staff must check the owner, and the item must go to the college office{% endif %}.</p>
+    {% if not approved %}<div class="wf-actions"><form method="post" action="{{ url_for('item_pref', item_id=item['id']) }}">{{ csrf() }}<input type="hidden" name="handover" value="admin"><button class="btn btn-small" type="submit">Switch to Option B (College office)</button></form></div>{% endif %}</div>
   {% elif item['custody_status'] == 'with_admin' %}
   <div class="wf-card"><h3>{{ icon('shield') }} The college office has this item</h3><p>Thank you. Staff will check the owner and give it back.</p></div>
+  {% endif %}
+{% endif %}
+
+{# Finder contact or College office guidance for claimants / other users viewing a found item #}
+{% if found and not owner and item['status'] == 'active' %}
+  {% if item['handover_pref'] == 'direct' and item['contact'] %}
+  <div class="wf-card is-private"><h3>{{ icon('phone') }} Finder's direct contact (Option A)</h3>
+    <p>The finder chose to display their contact details so you can reach them directly:</p>
+    <p class="wf-note" style="font-size: 1.15em; font-weight: 600;">{{ item['contact'] }}</p>
+    <p class="small muted">Always meet in a daylight, busy public location on campus (such as the library entrance or canteen) to verify ownership and collect your item. You can also submit an official claim below.</p></div>
+  {% elif item['handover_pref'] == 'admin' %}
+  <div class="wf-card"><h3>{{ icon('building') }} College office handover (Option B)</h3>
+    <p>The finder chose to keep their contact details private and hand over this item to the college office.</p>
+    {% if item['custody_status'] == 'with_admin' %}
+    <p><strong>Status:</strong> The college office holds this item. You can collect it from the college office after ownership verification (Reference: <strong>{{ item['ref_code'] }}</strong>).</p>
+    {% else %}
+    <p><strong>Status:</strong> The finder is submitting this item to the college office (Reference: <strong>{{ item['ref_code'] }}</strong>).</p>
+    {% endif %}</div>
   {% endif %}
 {% endif %}
 
@@ -87,14 +128,32 @@
       <button class="btn btn-primary" type="submit">Confirm receipt</button></form></div>
 {% endif %}
 
-{# ---------------------------------------------------------------- lost report: someone found it (direct return, no post needed) #}
+{# ---------------------------------------------------------------- lost report: Option A vs Option B & offers #}
+{% if not found and item['status'] == 'active' %}
+  {% if item['handover_pref'] == 'direct' and item['contact'] %}
+  <div class="wf-card is-private"><h3>{{ icon('phone') }} {{ 'Your direct contact (Option A)' if owner else 'Owner\'s direct contact (Option A)' }}</h3>
+    <p>{% if owner %}Your contact details are displayed so anyone who finds your item can contact you directly:{% else %}The owner chose Option A — Direct Contact. Reach out to them directly if you found this item:{% endif %}</p>
+    <p class="wf-note" style="font-size: 1.15em; font-weight: 600;">{{ item['contact'] }}</p>
+    <p class="small muted">{% if not owner %}You can call or email the owner directly, or submit a message using the quick form below.{% else %}You can update your contact anytime by editing your post.{% endif %}</p></div>
+  {% elif item['handover_pref'] == 'admin' %}
+  <div class="wf-card"><h3>{{ icon('building') }} College office submission (Option B)</h3>
+    {% if owner %}
+    <p>You chose <strong>Option B — College office</strong>. Your contact details are kept private.</p>
+    <p>Anyone who finds your item can submit it to the <strong>college office</strong> quoting Reference <strong>{{ item['ref_code'] }}</strong>, where you can collect it after ownership verification.</p>
+    {% else %}
+    <p>The owner chose <strong>Option B — College office</strong>. Contact details are kept private.</p>
+    <p>If you have found this item, please submit it to the <strong>college office</strong> quoting Reference <strong>{{ item['ref_code'] }}</strong>. The owner can collect it from the office after ownership verification.</p>
+    {% endif %}</div>
+  {% endif %}
+{% endif %}
+
 {% if not found %}
   {% if can_offer %}
   <div class="wf-card" id="found-it"><h3>{{ icon('handshake') }} Did you find this item?</h3>
-    <p>You do not need to make a post. Tell the owner where it is, and add your phone or email. After you send this, you will see the owner's contact too, so you can meet and give it back.</p>
+    <p>Tell the owner where it is and provide your phone or email. You do not need to create a separate post.</p>
     <form method="post" action="{{ url_for('found_it', item_id=item['id']) }}" class="wf-form" data-submit-once>{{ csrf() }}
       <div class="field"><label for="fi-msg">Where did you find it? <span class="req" aria-hidden="true">*</span></label>
-        <textarea id="fi-msg" name="message" rows="3" minlength="10" maxlength="500" required placeholder="e.g. I found it near the library stairs. I have it with me now."></textarea></div>
+        <textarea id="fi-msg" name="message" rows="3" minlength="10" maxlength="500" required placeholder="e.g. I found it near the library stairs. I have it with me now / I handed it to the office."></textarea></div>
       <div class="field"><label for="fi-contact">Your phone number or email <span class="req" aria-hidden="true">*</span></label>
         <input id="fi-contact" type="text" name="contact" maxlength="100" required placeholder="e.g. 98765 43210 or you@gmail.com" autocomplete="off">
         <span class="field-hint">Only the owner and college staff can see this.</span></div>
@@ -105,20 +164,14 @@
     {% if my_offer['status'] == 'open' %}<p>Now contact the owner and arrange to give the item back. Meet in a busy place on campus, during the day.</p>
     {% elif my_offer['status'] == 'returned' %}<p>The owner got the item back. Thank you for helping!</p>
     {% else %}<p>The owner says this is not their item. Thank you for trying.</p>{% endif %}
-    {% if my_offer['status'] == 'open' %}<dl class="contact-list"><div><dt>Owner</dt><dd>{{ item['owner_name'] }}</dd></div><div><dt>Owner's contact</dt><dd>{{ item['contact'] or 'The owner has not added a contact yet. They can see your details and will reach you.' }}</dd></div></dl>{% endif %}
+    {% if my_offer['status'] == 'open' %}<dl class="contact-list"><div><dt>Owner</dt><dd>{{ item['owner_name'] }}</dd></div><div><dt>Owner's contact</dt><dd>{{ item['contact'] or 'The owner chose Option B (College office) or has not added direct contact.' }}</dd></div></dl>{% endif %}
     <p class="small muted">What you sent: {{ my_offer['message'] }} ({{ my_offer['contact'] }})</p></div>
   {% endif %}
 
-  {% if owner and not item['contact'] and item['status'] in ('pending_review', 'active') %}
+  {% if owner and not item['contact'] and item['handover_pref'] == 'direct' and item['status'] in ('pending_review', 'active') %}
   <div class="wf-card is-alert"><h3>{{ icon('phone') }} Add your phone or email</h3>
-    <p>Without a contact, a person who finds your item cannot reach you.</p>
+    <p>You selected Option A (Direct contact), but no contact details are saved. Add a phone or email so finders can reach you.</p>
     <div class="wf-actions"><a class="btn btn-primary btn-small" href="{{ url_for('edit_item', item_id=item['id']) }}">{{ icon('edit') }} Add contact</a></div></div>
-  {% endif %}
-
-  {% if (owner or staff) and item['contact'] %}
-  <div class="wf-card is-private"><h3>{{ icon('phone') }} {{ 'Your contact details' if owner else 'Owner contact' }}</h3>
-    <p class="wf-note">{{ item['contact'] }}</p>
-    <p class="small muted">People can see this only after they tell you they found the item.</p></div>
   {% endif %}
 
   {% if (owner or staff) and offers %}

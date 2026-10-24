@@ -295,6 +295,10 @@ def create_report(db, user, *, kind, title, category, description, private_detai
         custody = "admin_handover_requested" if pref == "admin" else "with_finder"
     else:
         unsafe = False
+        pref = handover_pref if handover_pref in ("admin", "direct") else "direct"
+        custody = None
+    if pref == "admin":
+        contact = ""
     status = "pending_review" if moderation_required else "active"
     with transaction(db):
         check_report_rate(db, user)
@@ -369,11 +373,16 @@ def edit_report(db, user, item_id, *, title, category, description, private_deta
                     raise WorkflowError("The handover method cannot change after the item reached college custody.", 409)
                 pref = handover_pref
                 custody = "admin_handover_requested" if pref == "admin" else "with_finder"
+        else:
+            if handover_pref in ("admin", "direct"):
+                pref = handover_pref
+        if pref == "admin":
+            contact = ""
         db.execute("UPDATE items SET title = ?, category = ?, description = ?, private_details = ?, "
                    "location = ?, event_date = ?, risk_level = ?, handover_pref = ?, custody_status = ?, "
                    "contact = ?, updated_at = ? WHERE id = ?",
                    (title, category, description, private_details, location, event_date, risk, pref,
-                    custody, contact if item["type"] == "lost" else item["contact"], _now(), item_id))
+                    custody, contact, _now(), item_id))
 
 
 def close_report(db, actor, item_id, reason):

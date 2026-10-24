@@ -42,8 +42,13 @@ class Base(unittest.TestCase):
 
     def tearDown(self):
         appmod.send_mail = self._orig_mail
+        import gc
+        gc.collect()
         if os.path.exists(self.path):
-            os.remove(self.path)
+            try:
+                os.remove(self.path)
+            except OSError:
+                pass
 
     # ---- helpers
     def token(self, client, url="/login"):

@@ -99,7 +99,7 @@ class ReportAndModerationTests(WF):
         self.assertEqual((d["status"], d["custody_status"], d["handover_pref"]), ("active", "with_finder", "direct"))
         # choosing the admin option is a preference, never proof of deposit
         self.assertEqual((a["status"], a["custody_status"]), ("active", "admin_handover_requested"))
-        self.assertEqual((l["custody_status"], l["handover_pref"]), (None, None))
+        self.assertEqual((l["custody_status"], l["handover_pref"]), (None, "direct"))
         self.assertEqual(len({d["ref_code"], a["ref_code"], l["ref_code"]}), 3)
 
     def test_client_cannot_inject_status_or_custody(self):
@@ -211,10 +211,15 @@ class DirectReturnTests(WF):
         self.assertEqual(self.item(i)["contact"], "aarav@gmail.com")
 
     def test_contact_is_private(self):
-        i = self.lost(contact="9876501234")
-        self.publish(i)
-        self.assertNotIn("9876501234", self.text(self.carol.get(f"/item/{i}")))
-        self.assertIn("9876501234", self.text(self.alice.get(f"/item/{i}")))
+        # Option B (college office) keeps contact details private
+        i_admin = self.lost(contact="9876501234", handover="admin")
+        self.publish(i_admin)
+        self.assertNotIn("9876501234", self.text(self.carol.get(f"/item/{i_admin}")))
+        # Option A (direct contact) displays contact so finders can reach owner
+        i_direct = self.lost(title="Black umbrella", contact="9876501234", handover="direct")
+        self.publish(i_direct)
+        self.assertIn("9876501234", self.text(self.carol.get(f"/item/{i_direct}")))
+        self.assertIn("9876501234", self.text(self.alice.get(f"/item/{i_direct}")))
 
     def test_finder_offer_shows_both_contacts_and_owner_gets_item_back(self):
         i = self.lost(contact="9876501234")
