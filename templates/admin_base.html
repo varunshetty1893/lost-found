@@ -29,17 +29,12 @@
         <span>{{ campus }}<small>Admin console</small></span>
       </a>
       <nav class="adm-nav" aria-label="Admin sections">
-        <p class="adm-group">Daily</p>
-        <a href="{{ url_for('admin_home') }}" {% if ep in ('admin_home', 'admin_search') %}aria-current="page"{% endif %}>{{ icon('home') }}<span>Home</span></a>
-        <a href="{{ url_for('admin_requests') }}" {% if ep == 'admin_requests' %}aria-current="page"{% endif %}>{{ icon('id-card') }}<span>Approvals</span>{% if nav_counts and nav_counts.requests %}<b class="adm-count">{{ nav_counts.requests }}</b>{% endif %}</a>
-        <a href="{{ url_for('staff_queue', name='pending_reports') }}" {% if ep in ('staff_queue',) %}aria-current="page"{% endif %}>{{ icon('inbox') }}<span>Staff desk</span>{% if nav_counts and nav_counts.handovers %}<b class="adm-count">{{ nav_counts.handovers }}</b>{% endif %}</a>
-        <p class="adm-group">Manage</p>
-        <a href="{{ url_for('admin_users') }}" {% if ep in ('admin_users', 'admin_user_detail') %}aria-current="page"{% endif %}>{{ icon('users') }}<span>People</span></a>
+        <a href="{{ url_for('admin_home') }}" {% if ep == 'admin_home' %}aria-current="page"{% endif %}>{{ icon('home') }}<span>Home</span></a>
+        <a href="{{ url_for('staff_queue', name='pending_reports') }}" {% if ep == 'staff_queue' %}aria-current="page"{% endif %}>{{ icon('inbox') }}<span>Staff Desk</span>{% if nav_counts and nav_counts.handovers %}<b class="adm-count">{{ nav_counts.handovers }}</b>{% endif %}</a>
         <a href="{{ url_for('admin_listings') }}" {% if ep == 'admin_listings' %}aria-current="page"{% endif %}>{{ icon('box') }}<span>Items</span></a>
-        <a href="{{ url_for('admin_policy') }}" {% if ep == 'admin_policy' %}aria-current="page"{% endif %}>{{ icon('shield') }}<span>Verification policy</span></a>
-        <a href="{{ url_for('admin_roster') }}" {% if ep == 'admin_roster' %}aria-current="page"{% endif %}>{{ icon('table') }}<span>Campus list</span></a>
-        <p class="adm-group">Records</p>
-        <a href="{{ url_for('admin_audit') }}" {% if ep == 'admin_audit' %}aria-current="page"{% endif %}>{{ icon('activity') }}<span>Activity log</span></a>
+        <a href="{{ url_for('admin_users') }}" {% if ep in ('admin_users', 'admin_user_detail', 'admin_requests', 'admin_roster') %}aria-current="page"{% endif %}>{{ icon('users') }}<span>People</span>{% if nav_counts and nav_counts.requests %}<b class="adm-count">{{ nav_counts.requests }}</b>{% endif %}</a>
+        <a href="{{ url_for('admin_policy') }}" {% if ep == 'admin_policy' %}aria-current="page"{% endif %}>{{ icon('shield') }}<span>Verification Policy</span></a>
+        <a href="{{ url_for('admin_audit') }}" {% if ep == 'admin_audit' %}aria-current="page"{% endif %}>{{ icon('activity') }}<span>Activity Log</span></a>
       </nav>
       <div class="adm-side-foot">
         <a href="{{ url_for('index') }}">{{ icon('home') }}<span>Back to site</span></a>
@@ -55,7 +50,7 @@
         <button class="sr-only" type="submit">Search</button>
       </form>
       <div class="adm-top-actions">
-        <a class="adm-icon-btn" href="{{ url_for('admin_requests') }}" title="Approvals waiting" aria-label="Approvals waiting: {{ nav_counts.requests if nav_counts else 0 }}">{{ icon('bell') }}{% if nav_counts and nav_counts.requests %}<b class="adm-dot">{{ nav_counts.requests }}</b>{% endif %}</a>
+        <a class="adm-icon-btn" href="{{ url_for('admin_requests') }}" title="Registrations waiting for verification" aria-label="Registrations waiting for verification: {{ nav_counts.requests if nav_counts else 0 }}">{{ icon('bell') }}{% if nav_counts and nav_counts.requests %}<b class="adm-dot">{{ nav_counts.requests }}</b>{% endif %}</a>
         <a class="btn btn-small adm-site-btn" href="{{ url_for('index') }}">{{ icon('external') }} <span>View site</span></a>
         <details class="user-menu adm-user">
           <summary aria-label="Account menu for {{ me['name'] }}"><span class="avatar" aria-hidden="true">{{ me['name'][:1] }}</span><span class="user-chip-name">{{ me['name'].split()[0] }}</span>{{ icon('chevron-down') }}</summary>

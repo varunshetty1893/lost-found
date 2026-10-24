@@ -1,9 +1,10 @@
 {% extends "admin_base.html" %}
 {% from "_macros.html" import icon, role_badge %}
-{% from "_admin_macros.html" import page_head %}
-{% block title %}Approvals{% endblock %}
+{% from "_admin_macros.html" import page_head, people_tabs %}
+{% block title %}People · Registration Verification{% endblock %}
 {% block admin %}
-{% call page_head('Approvals', 'People who are not on the campus list uploaded an ID card. Check the photo matches the details, then approve or reject.') %}{% endcall %}
+{% call page_head('People', 'People who are not on the campus roster uploaded a college ID card. Check that the photo matches the details, then approve or reject. Every decision is recorded in the Activity Log.') %}{% endcall %}
+{{ people_tabs('verification', people_counts) }}
 {% if rows %}
   {% for u in rows %}
   <section class="adm-card request">
@@ -39,6 +40,6 @@
   </section>
   {% endfor %}
 {% else %}
-  <section class="adm-card empty">{{ icon('check-circle') }}<h2>Queue is empty</h2><p class="muted">No ID requests are waiting for review.</p></section>
+  <section class="adm-card empty">{{ icon('check-circle') }}<h2>Nothing to verify</h2><p class="muted">No registration requests are waiting for review.</p></section>
 {% endif %}
 {% endblock %}

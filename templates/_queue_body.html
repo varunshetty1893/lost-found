@@ -1,14 +1,12 @@
 {% from "_macros.html" import icon, type_tag, claim_tag %}
-<div class="adm-head"><div><h1>Staff desk</h1><p class="muted">Receipts, claims and handovers that need a staff decision.</p></div></div>
+<div class="adm-head"><div><h1>Staff Desk</h1><p class="muted">Pending reports, physical receipts, claim checks and handovers that need an authorized staff decision.</p></div></div>
 <nav class="q-tabs" aria-label="Queues">
   {% for key, label, _b in queues %}<a href="{{ url_for('staff_queue', name=key) }}" {% if key == name %}aria-current="page"{% endif %}>{{ label }}<b>{{ counts[key] }}</b></a>{% endfor %}
 </nav>
 <section class="adm-card">
   <div class="adm-card-head"><h2>{{ title }}</h2></div>
   <p class="muted">{{ blurb }}</p>
-  {% if name == 'awaiting_receipt' %}
   <form method="get" action="{{ url_for('staff_lookup') }}" class="wf-actions" style="margin-bottom:1rem"><input type="text" name="ref" placeholder="Report reference, e.g. LF-2026-00042" aria-label="Report reference" required><button class="btn btn-primary btn-small" type="submit">{{ icon('search') }} Find report</button></form>
-  {% endif %}
   {% if rows %}
   <div class="table-wrap"><table class="adm-table">
     <thead><tr><th>Reference</th><th data-primary>Item</th><th>Risk</th><th>Reported by</th><th>State</th><th>Waiting since</th><th><span class="sr-only">Open</span></th></tr></thead>
@@ -25,5 +23,5 @@
         <td class="row-actions"><a class="btn btn-small" href="{{ url_for('item_detail', item_id=r['id']) }}">Open</a></td>
       </tr>{% endfor %}
     </tbody></table></div>
-  {% else %}<div class="empty" style="border:0"><div class="empty-icon">{{ icon('check-circle') }}</div><h3>Nothing here</h3><p>This queue is empty.</p></div>{% endif %}
+  {% else %}<div class="empty" style="border:0"><div class="empty-icon">{{ icon('check-circle') }}</div><h3>Nothing here</h3><p>This tab is empty. New work appears here as soon as it needs a staff decision.</p></div>{% endif %}
 </section>

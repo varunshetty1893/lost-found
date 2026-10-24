@@ -1,11 +1,12 @@
 {% extends "admin_base.html" %}
 {% from "_macros.html" import icon, role_badge %}
-{% from "_admin_macros.html" import page_head, pager, status_pill %}
-{% block title %}People{% endblock %}
+{% from "_admin_macros.html" import page_head, pager, status_pill, people_tabs %}
+{% block title %}People · Registered Users{% endblock %}
 {% block admin %}
-{% call page_head('People', 'Everyone who has registered. Click a name to see what they have done.') %}
+{% call page_head('People', 'Registered members, registration requests that need a manual check, and the official campus roster.') %}
   <a class="btn btn-small" href="{{ url_for('admin_users_export', **filters) }}">{{ icon('download') }} Export CSV</a>
 {% endcall %}
+{{ people_tabs('users', people_counts) }}
 <form class="adm-filters" method="get" role="search">
   <input type="search" name="q" value="{{ filters.q }}" placeholder="Search name, email, ID or department" aria-label="Search members">
   <select name="role" aria-label="Role"><option value="">All roles</option><option value="student" {{ 'selected' if filters.role == 'student' }}>Students</option><option value="staff" {{ 'selected' if filters.role == 'staff' }}>Staff</option></select>
@@ -35,7 +36,7 @@
           <form method="post" action="{{ url_for('admin_user_action', user_id=u['id'], action='reactivate') }}" class="inline">
             <input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="next" value="{{ request.full_path.rstrip('?') }}">
             <button class="btn btn-small" type="submit">Reactivate</button></form>
-          {% elif u['status'] == 'pending_approval' %}<a class="btn btn-small" href="{{ url_for('admin_requests') }}">Review</a>{% endif %}
+          {% elif u['status'] == 'pending_approval' %}<a class="btn btn-small" href="{{ url_for('admin_requests') }}">Verify ID</a>{% endif %}
         </td>
       </tr>
     {% else %}

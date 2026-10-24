@@ -23,8 +23,9 @@ uploads. Back up and restore those separately when replacing an existing project
 with an empty database, the app creates the schema and loads `data/sample_roster.csv`.
 
 Optional demo data for screenshots: `python scripts/seed_demo.py` (demo members use the password `Demo@1234`).
-Run the tests from the project root: `python -m unittest` (111 tests: `tests/test_app.py` for accounts, the
-admin console and course end dates, `tests/test_workflow.py` for the business workflow).
+Run the tests from the project root: `python -m unittest` (144 tests: `tests/test_app.py` for accounts, the
+admin console and course end dates, `tests/test_workflow.py` for the business workflow, `tests/test_admin_console.py` for the
+six-entry sidebar, People tabs, admin permissions and roster import report).
 
 | Account | Login |
 |---------|-------|
@@ -37,18 +38,21 @@ To try registration, register as a sample person (for example roll number `S2305
 
 ## Admin console
 
-Admins land on the console straight after login (a left sidebar plus a top bar with one search box). The pages use plain names:
+Admins land on the console straight after login (a left sidebar plus a top bar with one search box). The sidebar has
+six entries, in this order:
 
 | Page | What it does |
 |------|--------------|
-| Home | A "To do" list first (people waiting for approval, unanswered claims, locked handovers, old listings), then four key numbers, shortcuts, a 14-day chart and the latest activity. |
-| Approvals | Review ID card photos with a roster check, then approve or reject with an emailed reason. |
-| People | Search and filter members, open a profile (items, claims, history), suspend with a reason or reactivate, export CSV. |
-| Items | Search and filter every post, delete rule-breaking items with a reason (the poster is notified and it is logged), export CSV. |
-| Campus list | The college roster: CSV import, add, edit, remove, filter, export CSV. |
-| Activity log | Search and filter the full history, export CSV. |
+| Home | A "To do" list first (registrations waiting, reports to publish, claims that need staff, locked handovers, old listings), then key numbers (all reports with the lost/found split, active reports, approved claims awaiting handover, returned items), shortcuts, a 14-day chart and the latest activity. It summarises and links; it does not repeat the tables. |
+| Staff Desk | Tabs for pending reports, items awaiting physical acceptance, claims needing review, claims awaiting more information, high-risk claims, disputed handovers, approved claims awaiting handover and completed returns. Admins and authorized custody officers only. |
+| Items | Every lost and found report: search, lost/found, status and category filters, links to the report (claims and custody history), **Close** with a recorded reason, Delete with a reason, export CSV. |
+| People | Three tabs: **Registered Users** (search, filter, member profiles, suspend/reactivate, course end dates, custody-officer authority, export), **Registration Verification** (ID card review with a roster check, approve or reject; each request can be decided once) and **Campus Roster** (CSV import with a row-by-row explanation of skipped rows, add, edit, remove, filter, export). |
+| Verification Policy | Category risk levels (the only editable setting), who verifies at each level, the fixed escalation rules and the abuse-prevention limits. A report takes the risk level in force when it is posted or edited. |
+| Activity Log | Search and filter the full history, export CSV. |
 
-The top-bar search looks across people, items and the campus list at once.
+The top-bar search looks across people, items and the campus roster at once (it is not a sidebar entry). A member profile is a
+detail page opened from Registered Users. The old addresses `/admin/users`, `/admin/requests` and `/admin/roster` are the three
+People tabs; `/admin/people?tab=users|verification|roster` also works.
 
 ## How only campus people can register
 
@@ -74,7 +78,7 @@ The top-bar search looks across people, items and the campus list at once.
 | Matches | Explainable suggestions (category, name, place, dates, description). Suggestions only: they never verify, approve, or move custody. |
 | Claims | A member describes the item privately (and may add up to 3 photos). Statuses: pending, needs more info, under admin review, approved, rejected, withdrawn. |
 | Two handover methods | See "Business rules" below. |
-| Staff desk | Queues for pending reports, items awaiting physical acceptance, claims needing review, high-risk claims, disputes, approved claims awaiting handover and completed returns. |
+| Staff Desk | Queues for pending reports, items awaiting physical acceptance, claims needing review, high-risk claims, disputes, approved claims awaiting handover and completed returns. |
 | Privacy | The finder sees a claim's private description but never the claimant's identity, phone or email until the claim is verified; then only name and campus email. Notifications never contain evidence. |
 | Alerts | In-app alerts for new claims, approvals, rejections and confirmed handovers. |
 | Dashboard | My listings, pending-claim counts, and my claims with next steps. |
@@ -227,7 +231,7 @@ Use `python scripts/seed_demo.py` (password `Demo@1234`) or register sample memb
 
 **Method A (college office):**
 1. As `aarav.shetty` report a found "Blue umbrella" (category Other) and choose "Hand it to the college office".
-2. As admin or Imran, publish it from **Staff desk > Pending reports**. The item page says it is *not in custody*.
+2. As admin or Imran, publish it from **Staff Desk > Pending reports**. The item page says it is *not in custody*.
 3. As `diya.nair` open the report and submit a claim. It appears under **Claims needing review**.
 4. As Imran approve it with a reason. Try "Record handover": it is refused because nothing was received.
 5. As Imran press **Confirm receipt** (tick the box). Custody becomes *In college custody* and a history line appears.
@@ -251,7 +255,8 @@ E2001,Staff Name,staff.name@yourcollege.edu,staff,Library
 ```
 
 `role` is `student` or `staff`. Importing again updates existing IDs and adds new ones. A template can be
-downloaded from the admin Roster tab.
+downloaded from People > Campus Roster. Rows that cannot be imported are listed with the CSV line and the reason; an ID that
+appears twice in one file is imported once.
 
 ## Project structure
 
@@ -271,6 +276,7 @@ lost-found/
   tests/
     test_app.py          accounts, admin console, UI, course end dates, input validation
     test_workflow.py     both handover methods, verification, security, concurrency, migration
+    test_admin_console.py  sidebar, People tabs, admin permissions, registration decisions, roster import report
   templates/             pages (public, member and admin) plus _macros.html (icons, cards, form helpers)
   static/
     css/style.css        design system (shared by member and admin pages)
@@ -381,7 +387,7 @@ Use persistent storage for the SQLite file and `private_uploads/` before handlin
 ## Course end dates, disabling and removing people
 
 - Every **student** on the campus list has a **course end date** (the last day of the course, for example
-  `2027-05-20`). Staff have none. Add it in *Campus list > Add person / Edit*, or with an `end_date`
+  `2027-05-20`). Staff have none. Add it in *People > Campus Roster > Add person / Edit*, or with an `end_date`
   column in the CSV import (blank means no automatic end).
 - The day **after** the end date the student's account is closed automatically ("Course ended on ... (automatic)"),
   their open claims and handovers are handled like a suspension, and they see a clear message on login.

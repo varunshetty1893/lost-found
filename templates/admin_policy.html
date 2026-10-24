@@ -1,24 +1,51 @@
 {% extends "admin_base.html" %}
+{% from "_macros.html" import icon %}
 {% from "_admin_macros.html" import page_head %}
-{% block title %}Verification policy - Admin{% endblock %}
+{% block title %}Verification Policy{% endblock %}
 {% block admin %}
-{{ page_head('Verification policy', 'Each category has a risk level. The level decides who may verify a claim.') }}
-<section class="adm-card flush">
+{{ page_head('Verification Policy', 'The rules that decide who may verify ownership of an item and how it can be handed back. Only administrators can change them.') }}
+
+<div class="adm-banner" role="note">{{ icon('info') }}<span><strong>College identity is not proof of ownership.</strong> A verified student or staff account only shows who the person is. Ownership is decided separately, from private details and evidence, under the rules below.</span></div>
+
+<section class="adm-card flush" aria-labelledby="pol-cat">
+  <div class="adm-card-head pad"><h2 id="pol-cat">1. Item categories and risk levels</h2></div>
   <form method="post" action="{{ url_for('admin_policy') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token }}">
     <div class="table-wrap"><table class="adm-table"><thead><tr><th data-primary>Category</th><th>Risk level</th></tr></thead><tbody>
       {% for r in rows %}<tr><td>{{ r.category }}</td><td><select name="{{ r.field }}" aria-label="Risk level for {{ r.category }}">{% for k in risks %}<option value="{{ k }}" {{ 'selected' if r.risk == k }}>{{ k|risk_label }}</option>{% endfor %}</select></td></tr>{% endfor %}
     </tbody></table></div>
-    <div class="adm-pager"><span class="muted small">Changes apply to new claims straight away.</span><button class="btn btn-primary" type="submit">Save policy</button></div>
+    <div class="adm-pager"><span class="muted small">A report takes the risk level that applies when it is posted or edited. Saving here does not change reports that are already published; they keep the level they were posted with.</span><button class="btn btn-primary" type="submit">Save risk levels</button></div>
   </form>
 </section>
-<section class="adm-card">
-  <div class="adm-card-head"><h2>What each level means</h2></div>
+
+<section class="adm-card" aria-labelledby="pol-who">
+  <div class="adm-card-head"><h2 id="pol-who">2. Who verifies, and how the item is handed back</h2></div>
   <ul>
-    <li><strong>Low risk:</strong> the finder may verify the claimant from the private description.</li>
-    <li><strong>Medium risk:</strong> the finder may verify only if the claim has a photo or a detailed description (at least {{ limits.medium }} characters); otherwise it goes to staff.</li>
-    <li><strong>High risk:</strong> always verified by authorized staff and returned through the college office.</li>
-    <li>More than one claim on an item, or an item held by the college, always goes to staff.</li>
+    <li><strong>Low risk, direct handover allowed:</strong> the finder may verify the claimant from the private description, then both people confirm the exchange.</li>
+    <li><strong>Medium risk, direct handover with a condition:</strong> the finder may verify only if the claim includes a photo or a detailed description (at least {{ limits.medium }} characters). Otherwise it goes to authorized staff.</li>
+    <li><strong>High risk, staff verification only:</strong> authorized staff verify the claim and the item is returned through the college office. Direct handover is not offered. Items a finder marks as possibly unsafe are treated the same way.</li>
   </ul>
-  <p class="muted small">New reports require staff approval: <strong>{{ 'on' if moderation else 'off' }}</strong> (environment variable MODERATION_REQUIRED). Limits: {{ limits.reports }} reports per hour and {{ limits.claims }} claims per day per member; finder claims unanswered for {{ limits.stale }} days appear in the staff queue.</p>
+</section>
+
+<section class="adm-card" aria-labelledby="pol-esc">
+  <div class="adm-card-head"><h2 id="pol-esc">3. Claim review and escalation</h2></div>
+  <p class="muted small">These rules apply whatever the risk level. They are built into the system and cannot be switched off.</p>
+  <ul>
+    <li>More than one open claim on an item: staff decide.</li>
+    <li>The item is held by the college, or the finder chose to hand it to the college office: staff decide.</li>
+    <li>A rejected claim that is appealed: staff decide, and their decision is final.</li>
+    <li>The finder's account is suspended: their pending claims go to staff, and a direct handover in progress is marked disputed.</li>
+    <li>Both people must confirm a direct exchange. If either reports a problem, the handover is disputed and only uninvolved staff can resolve it.</li>
+    <li>Finder claims that nobody answered for {{ limits.stale }} days appear on the Staff Desk.</li>
+  </ul>
+</section>
+
+<section class="adm-card" aria-labelledby="pol-lim">
+  <div class="adm-card-head"><h2 id="pol-lim">4. Abuse-prevention limits</h2></div>
+  <dl class="kv">
+    <div><dt>New reports</dt><dd>{{ limits.reports }} per member per hour</dd></div>
+    <div><dt>New claims</dt><dd>{{ limits.claims }} per member per day</dd></div>
+    <div><dt>Moderation of new reports</dt><dd>{{ 'On: staff approve a report before it is public' if moderation else 'Off: reports are public immediately' }}</dd></div>
+  </dl>
+  <p class="muted small">These values are fixed in the application settings (the moderation switch is the <code>MODERATION_REQUIRED</code> environment variable), so they are shown here but cannot be edited from this page.</p>
 </section>
 {% endblock %}

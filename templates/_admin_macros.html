@@ -48,3 +48,13 @@
   <div class="adm-head-actions">{{ caller() if caller else '' }}</div>
 </div>
 {% endmacro %}
+
+{# The three People tabs. Each tab is its own page (and URL), so bookmarks and form redirects keep working.
+   active = 'users' | 'verification' | 'roster'; counts = {'verification': n, 'roster': n} #}
+{% macro people_tabs(active, counts) %}
+<nav class="q-tabs people-tabs" aria-label="People sections">
+  <a href="{{ url_for('admin_users') }}" {% if active == 'users' %}aria-current="page"{% endif %}>Registered Users</a>
+  <a href="{{ url_for('admin_requests') }}" {% if active == 'verification' %}aria-current="page"{% endif %}>Registration Verification{% if counts and counts.verification %}<b>{{ counts.verification }}</b>{% endif %}</a>
+  <a href="{{ url_for('admin_roster') }}" {% if active == 'roster' %}aria-current="page"{% endif %}>Campus Roster{% if counts and counts.roster %}<b>{{ counts.roster }}</b>{% endif %}</a>
+</nav>
+{% endmacro %}

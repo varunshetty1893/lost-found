@@ -3,7 +3,7 @@
 {% from "_admin_macros.html" import page_head, status_pill %}
 {% block title %}{{ u['name'] }}{% endblock %}
 {% block admin %}
-<a class="adm-back" href="{{ url_for('admin_users') }}">{{ icon('arrow-left') }} All members</a>
+<a class="adm-back" href="{{ url_for('admin_users') }}">{{ icon('arrow-left') }} Registered Users</a>
 {% call page_head(u['name'], u['email']) %}
   {% if u['id_card'] %}<a class="btn btn-small" href="{{ url_for('admin_idcard', user_id=u['id']) }}" target="_blank" rel="noopener">{{ icon('id-card') }} ID card</a>{% endif %}
   {% if u['status'] == 'active' %}
@@ -19,7 +19,7 @@
     data-values='{{ {"title": "Course end date for " ~ u["name"], "message": "The account is closed automatically after this day. Setting a later date also reopens an account that was closed because the course ended.", "date_label": "Course end date", "end_date": u["academic_end"] or "", "confirm": "Save date", "next": url_for("admin_user_detail", user_id=u["id"])}|tojson }}'>{{ icon('calendar') }} Course end date</button>
   {% endif %}
   <button class="btn btn-ghost-danger btn-small" type="button" data-modal="dlg-action" data-action="{{ url_for('admin_user_action', user_id=u['id'], action='remove') }}"
-    data-values='{{ {"title": "Remove " ~ u["name"] ~ " completely?", "message": "This permanently deletes the account, all their listings and claims, and removes them from the campus list. It cannot be undone. Use Suspend instead if they may come back.", "confirm_word": "REMOVE", "confirm": "Remove permanently", "danger": true}|tojson }}'>{{ icon('trash') }} Remove</button>
+    data-values='{{ {"title": "Remove " ~ u["name"] ~ " completely?", "message": "This permanently deletes the account, all their listings and claims, and removes them from the campus roster. It cannot be undone. Use Suspend instead if they may come back.", "confirm_word": "REMOVE", "confirm": "Remove permanently", "danger": true}|tojson }}'>{{ icon('trash') }} Remove</button>
 {% endcall %}
 
 <div class="adm-cols narrow-left">
@@ -59,7 +59,7 @@
       <div class="adm-card-head pad"><h2>Claims made</h2></div>
       <div class="table-wrap"><table class="adm-table">
         <thead><tr><th>Item</th><th>When</th><th>Outcome</th></tr></thead>
-        <tbody>{% for c in claims %}<tr><td>{{ c['title'] }}</td><td>{{ c['created_at']|stamp }}</td><td><span class="pill pill-{{ 'active' if c['status'] == 'approved' else ('rejected' if c['status'] == 'rejected' else 'pending_approval') }}">{{ c['status']|capitalize }}</span></td></tr>
+        <tbody>{% for c in claims %}<tr><td><a href="{{ url_for('item_detail', item_id=c['item_id']) }}">{{ c['title'] }}</a></td><td>{{ c['created_at']|stamp }}</td><td><span class="pill pill-{{ 'active' if c['status'] == 'approved' else ('rejected' if c['status'] == 'rejected' else 'pending_approval') }}">{{ c['status']|capitalize }}</span></td></tr>
         {% else %}<tr><td colspan="3" class="muted empty-row">No claims.</td></tr>{% endfor %}</tbody>
       </table></div>
     </section>

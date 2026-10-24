@@ -324,9 +324,11 @@ def roster_row_error(id_number, name, email, role, dept, end, require_end=False)
             or (validate_end_date(end, required=require_end) if role == "student" else None))
 
 
-def import_roster(db, text):
+def import_roster(db, text, errors=None):
     """Add or update roster rows from CSV text. Returns (added, updated, skipped).
-    Optional column end_date (YYYY-MM-DD) is the last day of a student's course; blank means no automatic end."""
+    Optional column end_date (YYYY-MM-DD) is the last day of a student's course; blank means no automatic end.
+    If `errors` is a list, one (line_number, id_number, reason) tuple is appended for every skipped row, so the
+    caller can explain exactly what was wrong. An ID that appears twice in one file is imported once (first row)."""
     reader = csv.DictReader(io.StringIO(text))
     names = {(h or "").strip().lower() for h in (reader.fieldnames or [])}
     if not {"id_number", "full_name", "email", "role"} <= names:
@@ -334,18 +336,32 @@ def import_roster(db, text):
                          "(and optionally end_date).")
     has_end = bool({"end_date", "academic_end"} & names)
     added = updated = skipped = 0
+    seen = set()
+
+    def skip(line, ident, reason):
+        nonlocal skipped
+        skipped += 1
+        if errors is not None:
+            errors.append((line, ident, reason))
+
     for n, raw in enumerate(reader):
+        line = n + 2  # line 1 is the header
         if n >= 5000:
-            skipped += 1
+            skip(line, "", "Over the 5,000-row limit for one import.")
             continue
         row = {(k or "").strip().lower(): (v or "").strip() for k, v in raw.items() if k}
         id_number = row.get("id_number", "").upper()
         name, email = row.get("full_name", ""), row.get("email", "").lower()
         role, dept = row.get("role", "").lower(), row.get("department", "")
         end = row.get("end_date", "") or row.get("academic_end", "")
-        if roster_row_error(id_number, name, email, role, dept, end):
-            skipped += 1
+        problem = roster_row_error(id_number, name, email, role, dept, end)
+        if problem:
+            skip(line, id_number, problem)
             continue
+        if id_number in seen:
+            skip(line, id_number, "This ID number appears more than once in the file; only the first row was used.")
+            continue
+        seen.add(id_number)
         if role != "student":
             end = ""
         if db.execute("SELECT 1 FROM roster WHERE id_number = ?", (id_number,)).fetchone():
@@ -1657,6 +1673,8 @@ QUEUES = [("pending_reports", "Pending reports", "New reports waiting to be publ
            "Finders chose to hand the item to the college. Nothing is in custody until you confirm receipt."),
           ("claims_review", "Claims needing review",
            "Claims escalated to staff, competing claims, and finder claims nobody answered for a few days."),
+          ("needs_info", "Awaiting more information",
+           "Claims where the claimant was asked for more detail. Nothing to decide until they reply."),
           ("high_risk", "High-risk claims", "Phones, laptops, wallets, ID cards and other items that always need staff."),
           ("disputes", "Disputed handovers", "A handover one side says did not happen. Resolve before anything is released."),
           ("awaiting_collection", "Approved, awaiting handover", "A claim is approved. Record the handover when it happens."),
@@ -1680,6 +1698,9 @@ def queue_rows(name):
         return qa(claim_base + "WHERE items.status = 'active' AND (claims.status = 'under_admin_review' OR "
                                "(claims.status = 'pending' AND claims.handler = 'finder' AND claims.created_at < ?)) "
                                "ORDER BY claims.created_at", cut)
+    if name == "needs_info":
+        return qa(claim_base + "WHERE items.status = 'active' AND claims.status = 'needs_more_info' "
+                               "ORDER BY claims.created_at")
     if name == "high_risk":
         return qa(claim_base + "WHERE items.status = 'active' AND items.risk_level = 'high' AND claims.status IN "
                                "('pending', 'needs_more_info', 'under_admin_review') ORDER BY claims.created_at")
@@ -1761,7 +1782,7 @@ def admin_back(default_endpoint):
 
 @app.context_processor
 def inject_admin_counts():
-    if not request.path.startswith("/admin"):
+    if not (request.path.startswith("/admin") or request.path.startswith("/staff")):
         return {}
     user = current_user()
     if user is None or user["role"] != "admin":
@@ -1770,6 +1791,25 @@ def inject_admin_counts():
         "requests": q1("SELECT COUNT(*) AS c FROM users WHERE status = 'pending_approval'")["c"],
         "handovers": sum(len(queue_rows(k)) for k in ("pending_reports", "awaiting_receipt", "claims_review", "disputes")),
     }}
+
+
+def people_tab_counts():
+    """Badge numbers for the three People tabs."""
+    return {"people_counts": {
+        "verification": q1("SELECT COUNT(*) AS c FROM users WHERE status = 'pending_approval'")["c"],
+        "roster": q1("SELECT COUNT(*) AS c FROM roster")["c"]}}
+
+
+PEOPLE_TABS = {"users": "admin_users", "verification": "admin_requests", "roster": "admin_roster"}
+
+
+@app.route("/admin/people")
+@admin_required
+def admin_people():
+    """Single People entry point: /admin/people?tab=users|verification|roster (other filters are carried over)."""
+    endpoint = PEOPLE_TABS.get(request.args.get("tab", "users"), "admin_users")
+    extra = {k: v for k, v in request.args.items() if k != "tab" and v}
+    return redirect(url_for(endpoint, **extra))
 
 
 @app.route("/admin/search")
@@ -1806,6 +1846,8 @@ def admin_home():
         "suspended": count("SELECT COUNT(*) AS c FROM users WHERE status = 'suspended'"),
         "roster": count("SELECT COUNT(*) AS c FROM roster"),
         "total": total_items,
+        "total_lost": count("SELECT COUNT(*) AS c FROM items WHERE type = 'lost'"),
+        "total_found": count("SELECT COUNT(*) AS c FROM items WHERE type = 'found'"),
         "open": count("SELECT COUNT(*) AS c FROM items WHERE status = 'active'"),
         "open_lost": count("SELECT COUNT(*) AS c FROM items WHERE status = 'active' AND type = 'lost'"),
         "open_found": count("SELECT COUNT(*) AS c FROM items WHERE status = 'active' AND type = 'found'"),
@@ -1872,7 +1914,7 @@ def admin_requests():
               "roster.full_name AS roster_name FROM users "
               "LEFT JOIN roster ON roster.id_number = users.id_number "
               "WHERE users.status = 'pending_approval' ORDER BY users.id")
-    return render_template("admin_requests.html", rows=rows)
+    return render_template("admin_requests.html", rows=rows, people_tab="verification", **people_tab_counts())
 
 
 @app.route("/admin/idcard/<int:user_id>")
@@ -1881,7 +1923,9 @@ def admin_idcard(user_id):
     user = q1("SELECT id_card FROM users WHERE id = ?", user_id)
     if user is None or not user["id_card"]:
         abort(404)
-    return send_from_directory(CARD_DIR, user["id_card"])
+    resp = send_from_directory(CARD_DIR, user["id_card"])
+    resp.headers["Cache-Control"] = "private, no-store"   # ID card photos are sensitive: never cached
+    return resp
 
 
 @app.route("/admin/requests/<int:user_id>/<action>", methods=["POST"])
@@ -1893,15 +1937,20 @@ def admin_review_request(user_id, action):
     if user is None:
         flash("That request was already handled.", "info")
         return redirect(url_for("admin_requests"))
+    # The status is re-checked inside the UPDATE, so two admins cannot both decide the same request.
+    guard = run("UPDATE users SET status = ? WHERE id = ? AND status = 'pending_approval'",
+                "active" if action == "approve" else "rejected", user_id)
+    if guard.rowcount == 0:
+        flash("That request was already handled.", "info")
+        return redirect(url_for("admin_requests"))
     if action == "approve":
-        run("UPDATE users SET status = 'active' WHERE id = ?", user_id)
         audit("request_approved", f"{user['name']} ({user['role']} {user['id_number']})")
         send_mail(user["email"], f"{CAMPUS_NAME} Lost & Found: account approved",
                   f"Hello {user['name']},\n\nYour registration was approved. You can log in now.")
         flash(f"{user['name']} approved.", "success")
     else:
         note = request.form.get("note", "").strip()[:200]
-        run("UPDATE users SET status = 'rejected', review_note = ? WHERE id = ?", note, user_id)
+        run("UPDATE users SET review_note = ? WHERE id = ?", note, user_id)
         audit("request_rejected", f"{user['name']} ({user['role']} {user['id_number']}) {note}")
         send_mail(user["email"], f"{CAMPUS_NAME} Lost & Found: request not approved",
                   f"Hello {user['name']},\n\nYour registration request was not approved. {note}")
@@ -1949,7 +1998,9 @@ def admin_roster():
         pager_args["per_page"] = per_page
     return render_template("admin_roster.html", rows=rows, total=total, total_all=total_all,
                            page=page, pages=pages, filters=filters, q=filters["q"],
-                           per_page=per_page, page_sizes=ROSTER_PAGE_SIZES, pager_args=pager_args)
+                           per_page=per_page, page_sizes=ROSTER_PAGE_SIZES, pager_args=pager_args,
+                           import_problems=session.pop("roster_import_problems", None),
+                           people_tab="roster", **people_tab_counts())
 
 
 @app.route("/admin/roster/export.csv")
@@ -1981,14 +2032,21 @@ def admin_roster_upload():
         return redirect(url_for("admin_roster"))
     try:
         text = file.read().decode("utf-8-sig")
-        added, updated, skipped = import_roster(get_db(), text)
+        problems = []
+        added, updated, skipped = import_roster(get_db(), text, problems)
     except UnicodeDecodeError:
         flash("The file must be a UTF-8 CSV.", "error")
     except (ValueError, csv.Error) as exc:
         flash(str(exc), "error")
     else:
         audit("roster_import", f"added {added}, updated {updated}, skipped {skipped}")
-        flash(f"Roster imported: {added} added, {updated} updated, {skipped} skipped.", "success")
+        flash(f"Roster imported: {added} added, {updated} updated, {skipped} skipped.",
+              "success" if not skipped else "info")
+        if problems:
+            # Kept short so it fits in the session cookie; shown once on the roster page.
+            session["roster_import_problems"] = {
+                "total": len(problems),
+                "rows": [[ln, ident[:20], reason[:110]] for ln, ident, reason in problems[:10]]}
     return redirect(url_for("admin_roster"))
 
 
@@ -2097,7 +2155,7 @@ def admin_users():
               "FROM users " + where + " ORDER BY users.id DESC LIMIT ? OFFSET ?",
               *params, ADMIN_PER_PAGE, offset)
     return render_template("admin_users.html", rows=rows, total=total, page=page, pages=pages,
-                           filters=filters, statuses=USER_STATUSES)
+                           filters=filters, statuses=USER_STATUSES, people_tab="users", **people_tab_counts())
 
 
 @app.route("/admin/users/export.csv")
@@ -2305,6 +2363,16 @@ def admin_listings_export():
     return csv_response("listings.csv", ["id", "type", "title", "category", "location", "date", "status",
                                          "posted_by", "poster_email", "posted_at", "returned_at", "reference", "custody"],
                         [tuple(r) for r in rows])
+
+
+@app.route("/admin/listings/<int:item_id>/close", methods=["POST"])
+@admin_required
+def admin_listing_close(item_id):
+    """Close a report with a recorded reason (keeps the record, ends open claims). Rules live in services.close_report."""
+    get_item_or_404(item_id)
+    act(services.close_report, current_user(), item_id, request.form.get("reason", ""),
+        ok="The report was closed and the reason recorded.")
+    return admin_back("admin_listings")
 
 
 @app.route("/admin/listings/<int:item_id>/delete", methods=["POST"])

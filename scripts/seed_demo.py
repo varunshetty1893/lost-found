@@ -27,6 +27,11 @@ ITEMS = [
     ("S2304", "found", "Set of keys with a green tag", "Keys", "Three keys on a ring with a green tag.", "Sports ground", 4, "finder", "active"),
     ("S2301", "lost", "Silver wired earphones", "Accessories", "Silver earphones in a small grey case.", "Seminar hall", 5, None, "active"),
     ("S2302", "found", "Grey hoodie", "Clothing", "Grey zip hoodie, size M, left on a chair.", "Lab block", 6, "finder", "returned"),
+    ("S2303", "found", "Operating Systems textbook", "Books & Notes", "Hardcover OS textbook with sticky notes inside.", "Library reading room", 2, "finder", "active"),
+    ("S2304", "lost", "Samsung phone with blue case", "Electronics", "Blue silicone case, cracked corner on the screen.", "Canteen", 1, None, "active"),
+    ("E1003", "found", "Student ID card", "ID & Cards", "ID card found near the main gate. Kept at the Security Office.", "Main gate", 1, "security", "active"),
+    ("S2301", "lost", "Black umbrella", "Other", "Black folding umbrella with a wooden handle.", "Bus stop", 3, None, "active"),
+    ("S2302", "lost", "Silver wrist watch", "Accessories", "Silver analog watch with a brown strap.", "Gymnasium", 4, None, "active"),
 ]
 
 

@@ -18,7 +18,7 @@
 
   {% if attention.requests %}
   <div class="todo-block">
-    <div class="todo-head"><span class="todo-num">{{ attention.requests }}</span><div><h3>People waiting for approval</h3><p class="muted small">They are not on the campus list, so they sent an ID card photo.</p></div><a class="btn btn-primary btn-small" href="{{ url_for('admin_requests') }}">Review all</a></div>
+    <div class="todo-head"><span class="todo-num">{{ attention.requests }}</span><div><h3>Registrations waiting for verification</h3><p class="muted small">They are not on the campus roster, so they sent an ID card photo.</p></div><a class="btn btn-primary btn-small" href="{{ url_for('admin_requests') }}">Verify</a></div>
     <ul class="todo-list">{% for u in waiting %}<li><span><strong>{{ u['name'] }}</strong> {{ role_badge(u['role']) }} <span class="muted small">ID {{ u['id_number'] }} · asked {{ u['created_at']|stamp }}</span></span><a href="{{ url_for('admin_requests') }}">Check ID card &rarr;</a></li>{% endfor %}</ul>
   </div>
   {% endif %}
@@ -55,18 +55,20 @@
 </section>
 
 <div class="num-row">
+  <a class="num" href="{{ url_for('admin_listings') }}"><strong>{{ stats.total }}</strong><span>Reports in total</span><small>{{ stats.total_lost }} lost · {{ stats.total_found }} found</small></a>
   <a class="num" href="{{ url_for('admin_users', status='active') }}"><strong>{{ stats.members }}</strong><span>People registered</span><small>+{{ stats.new_members }} this week</small></a>
-  <a class="num" href="{{ url_for('admin_listings', status='active') }}"><strong>{{ stats.open }}</strong><span>Published items</span><small>{{ stats.open_lost }} lost · {{ stats.open_found }} found</small></a>
+  <a class="num" href="{{ url_for('admin_listings', status='active') }}"><strong>{{ stats.open }}</strong><span>Active reports</span><small>{{ stats.open_lost }} lost · {{ stats.open_found }} found</small></a>
   <a class="num" href="{{ url_for('staff_queue', name='awaiting_collection') }}"><strong>{{ stats.claimed }}</strong><span>Approved, awaiting handover</span><small>claim approved, not yet returned</small></a>
   <a class="num" href="{{ url_for('admin_listings', status='returned') }}"><strong>{{ stats.returned }}</strong><span>Given back to owners</span><small>{{ stats.rate }}% of all items</small></a>
 </div>
 
 <h2 class="adm-h2">Where do you want to go?</h2>
 <div class="go-grid">
-  <a class="go" href="{{ url_for('admin_users') }}"><span class="go-icon">{{ icon('users') }}</span><strong>People</strong><span class="muted">See everyone who registered. Suspend someone who breaks the rules.</span></a>
-  <a class="go" href="{{ url_for('admin_listings') }}"><span class="go-icon">{{ icon('box') }}</span><strong>Items</strong><span class="muted">Look at every lost and found post. Remove bad ones.</span></a>
-  <a class="go" href="{{ url_for('admin_roster') }}"><span class="go-icon">{{ icon('table') }}</span><strong>Campus list</strong><span class="muted">Add or import the students and staff allowed to register.</span></a>
-  <a class="go" href="{{ url_for('admin_audit') }}"><span class="go-icon">{{ icon('activity') }}</span><strong>Activity log</strong><span class="muted">A record of everything admins and staff have done.</span></a>
+  <a class="go" href="{{ url_for('staff_queue', name='pending_reports') }}"><span class="go-icon">{{ icon('inbox') }}</span><strong>Staff Desk</strong><span class="muted">Review reports, confirm receipts, check claims and record handovers.</span></a>
+  <a class="go" href="{{ url_for('admin_listings') }}"><span class="go-icon">{{ icon('box') }}</span><strong>Items</strong><span class="muted">Search every lost and found report, close or remove one.</span></a>
+  <a class="go" href="{{ url_for('admin_users') }}"><span class="go-icon">{{ icon('users') }}</span><strong>People</strong><span class="muted">Members, registration verification and the campus roster.</span></a>
+  <a class="go" href="{{ url_for('admin_policy') }}"><span class="go-icon">{{ icon('shield') }}</span><strong>Verification Policy</strong><span class="muted">Risk levels and the rules for ownership checks.</span></a>
+  <a class="go" href="{{ url_for('admin_audit') }}"><span class="go-icon">{{ icon('activity') }}</span><strong>Activity Log</strong><span class="muted">A record of everything admins and staff have done.</span></a>
 </div>
 
 <div class="adm-cols">
