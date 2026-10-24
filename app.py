@@ -70,8 +70,8 @@ app.config["SESSION_COOKIE_SECURE"] = (
     or os.environ.get("SESSION_COOKIE_SECURE", "").strip().lower() in {"1", "true", "yes"}
 )
 app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(hours=12)
-# New reports wait for staff approval before they are public. Set MODERATION_REQUIRED=0 to publish immediately.
-MODERATION_REQUIRED = os.environ.get("MODERATION_REQUIRED", "1").strip().lower() not in {"0", "false", "no"}
+# New reports publish immediately by default without requiring staff or admin approval. Set MODERATION_REQUIRED=1 to require review.
+MODERATION_REQUIRED = os.environ.get("MODERATION_REQUIRED", "0").strip().lower() in {"1", "true", "yes"}
 os.makedirs(ITEM_DIR, exist_ok=True)
 os.makedirs(CARD_DIR, exist_ok=True)
 os.makedirs(EVIDENCE_DIR, exist_ok=True)

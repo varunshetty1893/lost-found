@@ -73,7 +73,7 @@ People tabs; `/admin/people?tab=users|verification|roster` also works.
 |------|--------------|
 | Roles | Student, Staff and Admin, shown as badges. |
 | Listings | Lost or found reports with a reference code (for example `LF-2026-00042`), category, place, date, public description, an optional photo and optional *private identifying details* that are never shown publicly. |
-| Moderation | New reports wait for staff approval before they are public (`MODERATION_REQUIRED`, on by default). |
+| Moderation | New reports publish immediately by default (`MODERATION_REQUIRED=0`). Set `MODERATION_REQUIRED=1` to require staff approval before publishing. |
 | Search | Keyword search, lost/found tabs, category filter, sorting, include returned items, removable chips, pagination. Private details are never searched. |
 | Matches | Explainable suggestions (category, name, place, dates, description). Suggestions only: they never verify, approve, or move custody. |
 | Claims | A member describes the item privately (and may add up to 3 photos). Statuses: pending, needs more info, under admin review, approved, rejected, withdrawn. |
@@ -368,7 +368,7 @@ Use persistent storage for the SQLite file and `private_uploads/` before handlin
 | `SECRET_KEY` / `SESSION_SECRET` | fixed development value | Session signing key. Required in production. |
 | `ADMIN_PASSWORD` | demo password in development | Used when the database is first created. |
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `MAIL_FROM` | empty | Real email delivery. |
-| `MODERATION_REQUIRED` | `1` | `0` publishes new reports immediately. |
+| `MODERATION_REQUIRED` | `0` | `0` publishes new reports immediately (default); `1` requires staff review. |
 
 ## Known limitations
 
