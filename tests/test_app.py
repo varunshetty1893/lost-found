@@ -33,7 +33,7 @@ class Base(unittest.TestCase):
         appmod.app.config["TESTING"] = True
         self.mails = []
         self._orig_mail = appmod.send_mail
-        appmod.send_mail = lambda to, subject, body: (self.mails.append((to, subject, body)) or "console")
+        appmod.send_mail = lambda to, subject, body, *a, **kw: (self.mails.append((to, subject, body)) or "console")
         self.admin = appmod.app.test_client()
         self.alice = appmod.app.test_client()   # student S2301
         self.bob = appmod.app.test_client()     # student S2302
@@ -138,7 +138,7 @@ class RegistrationTests(Base):
         self.assertIn("Please wait", r.get_data(as_text=True))
 
     def test_registration_delivery_failure_is_reported_and_resend_is_limited(self):
-        appmod.send_mail = lambda to, subject, body: "failed"
+        appmod.send_mail = lambda to, subject, body, *a, **kw: "failed"
         r = self.register(self.alice, "student", "S2301", "aarav.shetty@campus.edu", verify=False)
         self.assertIn("could not send the email", r.get_data(as_text=True).lower())
         with appmod.app.app_context():
@@ -747,6 +747,36 @@ class MailDeliveryTests(unittest.TestCase):
         self.assertEqual(result, "failed")
         self.assertNotIn("987654", "\n".join(captured.output))
         smtp.assert_not_called()
+
+    def test_build_html_email_formats_verification_code_and_branding(self):
+        html = appmod.build_html_email("Verification code", "Hello Varun,\n\nYour verification code is 960394.\n\nIt expires in 10 minutes.")
+        self.assertIn("960394", html)
+        self.assertIn("Hello Varun,", html)
+        self.assertIn("Verification Code", html)
+        self.assertIn("Lost &amp; Found", html)
+
+    def test_smtp_delivery_with_html_body_creates_multipart_message(self):
+        smtp = mock.Mock()
+        smtp.__enter__ = mock.Mock(return_value=smtp)
+        smtp.__exit__ = mock.Mock(return_value=False)
+        settings = {
+            "SMTP_HOST": "smtp.example.edu",
+            "SMTP_PORT": "587",
+            "SMTP_USER": "portal@example.edu",
+            "SMTP_PASS": "mail-password",
+        }
+        with mock.patch.dict(os.environ, settings), \
+                mock.patch.object(appmod.smtplib, "SMTP", return_value=smtp):
+            html = appmod.build_html_email("Code", "Hello,\nCode: 123456")
+            result = appmod.send_mail("student@example.edu", "Code", "Hello,\nCode: 123456", html_body=html)
+
+        self.assertEqual(result, "email")
+        message = smtp.send_message.call_args.args[0]
+        self.assertTrue(message.is_multipart())
+        plain_part = message.get_body(preferencelist=("plain",))
+        self.assertIn("123456", plain_part.get_content())
+        html_part = message.get_body(preferencelist=("html",))
+        self.assertIn("123456", html_part.get_content())
 
 
 class AdminConsoleTests(Base):

@@ -3,6 +3,7 @@ Flask + SQLite. Only verified campus members (students and staff) can use it.
 """
 import csv
 import hashlib
+import html
 import io
 import math
 import os
@@ -605,7 +606,111 @@ def notify(user_id, message, link="", kind="info"):
         user_id, message, link, kind, now())
 
 
-def send_mail(to, subject, body):
+def build_html_email(subject, body, campus_name=None):
+    """Creates a modern, responsive HTML email matching campus branding."""
+    campus = campus_name or CAMPUS_NAME
+    otp_match = re.search(r"\b(\d{6})\b", body)
+    otp_code = otp_match.group(1) if otp_match else None
+
+    lines = [line.strip() for line in body.split("\n") if line.strip()]
+    greeting = lines[0] if lines and lines[0].lower().startswith("hello") else ""
+    remaining_lines = lines[1:] if greeting else lines
+
+    cleaned_paragraphs = []
+    for l in remaining_lines:
+        if otp_code and otp_code in l:
+            continue
+        cleaned_paragraphs.append(l)
+
+    paragraphs_html = "".join(
+        f'<p style="margin: 0 0 16px; color: #334155; font-size: 15px; line-height: 1.6;">{html.escape(p)}</p>'
+        for p in cleaned_paragraphs
+    )
+
+    otp_block = ""
+    if otp_code:
+        otp_block = f"""
+        <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="margin: 24px 0; background: #f8fafc; border: 1.5px solid #cbd5e1; border-radius: 12px; text-align: center;">
+          <tr>
+            <td style="padding: 24px 16px;">
+              <div style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; color: #64748b; margin-bottom: 8px;">
+                Verification Code
+              </div>
+              <div style="font-family: 'SF Mono', Consolas, 'Liberation Mono', Menlo, Courier, monospace; font-size: 38px; font-weight: 800; letter-spacing: 10px; color: #0b3249; margin: 6px 0 10px; text-indent: 10px;">
+                {otp_code}
+              </div>
+              <div style="display: inline-block; font-size: 12px; color: #475569; background: #e2e8f0; padding: 4px 12px; border-radius: 20px; font-weight: 500;">
+                ⏱ Expires in {OTP_MINUTES} minutes · Single-use only
+              </div>
+            </td>
+          </tr>
+        </table>
+        <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="margin-bottom: 20px; background: #f1f5f9; border-left: 4px solid #0b3249; border-radius: 4px;">
+          <tr>
+            <td style="padding: 12px 16px; font-size: 13px; color: #475569; line-height: 1.5;">
+              <strong>Security tip:</strong> Never share this code with anyone. Campus staff will never ask for your verification code.
+            </td>
+          </tr>
+        </table>
+        """
+
+    return f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{html.escape(subject)}</title>
+</head>
+<body style="margin: 0; padding: 0; background-color: #f1f5f9; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; -webkit-font-smoothing: antialiased;">
+  <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="background-color: #f1f5f9; padding: 36px 12px;">
+    <tr>
+      <td align="center">
+        <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="max-width: 540px; background: #ffffff; border-radius: 14px; overflow: hidden; box-shadow: 0 4px 16px rgba(15, 23, 42, 0.08); border: 1px solid #e2e8f0;">
+          <tr>
+            <td style="background: linear-gradient(135deg, #0b3249 0%, #174b6b 100%); padding: 26px 32px; text-align: left;">
+              <table role="presentation" cellpadding="0" cellspacing="0" width="100%">
+                <tr>
+                  <td>
+                    <div style="color: #ffffff; font-size: 18px; font-weight: 800; letter-spacing: -0.02em;">
+                      {html.escape(campus)} Lost &amp; Found
+                    </div>
+                    <div style="color: #94a3b8; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; margin-top: 3px;">
+                      Verified Campus Members
+                    </div>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 32px 32px 24px;">
+              <h1 style="margin: 0 0 16px; font-size: 22px; font-weight: 700; color: #0f172a; letter-spacing: -0.02em;">
+                {html.escape(subject)}
+              </h1>
+              {f'<p style="margin: 0 0 16px; font-size: 16px; font-weight: 600; color: #0f172a;">{html.escape(greeting)}</p>' if greeting else ''}
+              {paragraphs_html}
+              {otp_block}
+            </td>
+          </tr>
+          <tr>
+            <td style="background: #f8fafc; border-top: 1px solid #e2e8f0; padding: 20px 32px; text-align: center;">
+              <p style="margin: 0 0 6px; font-size: 12px; color: #64748b; line-height: 1.5;">
+                This is an automated security message from <strong>{html.escape(campus)} Lost &amp; Found</strong>.
+              </p>
+              <p style="margin: 0; font-size: 11px; color: #94a3b8;">
+                If you did not initiate this request, you can safely ignore this email.
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>"""
+
+
+def send_mail(to, subject, body, html_body=None):
     """Returns 'email', 'console' (demo mode) or 'failed'."""
     host = os.environ.get("SMTP_HOST", "").strip()
     if not host:
@@ -628,6 +733,8 @@ def send_mail(to, subject, body):
         msg["From"] = os.environ.get("MAIL_FROM", smtp_user or "noreply@campus.local")
         msg["To"], msg["Subject"] = to, subject
         msg.set_content(body)
+        if html_body:
+            msg.add_alternative(html_body, subtype="html")
         with smtplib.SMTP(host, port, timeout=15) as smtp:
             smtp.starttls()
             if smtp_user:
@@ -875,10 +982,14 @@ def issue_otp(user):
     expires = (datetime.now() + timedelta(minutes=OTP_MINUTES)).strftime(TS)
     run("INSERT OR REPLACE INTO otp_codes (user_id, code_hash, expires_at, tries, sent_at) "
         "VALUES (?, ?, ?, 0, ?)", user["id"], otp_hash(user["id"], code), expires, now())
-    return send_mail(user["email"], f"{CAMPUS_NAME} Lost & Found verification code",
-                     f"Hello {user['name']},\n\nYour verification code is {code}. "
-                     f"It expires in {OTP_MINUTES} minutes.\n\n"
-                     "If you did not try to register, you can ignore this email.")
+    subject = f"{CAMPUS_NAME} Lost & Found verification code"
+    plain = (
+        f"Hello {user['name']},\n\n"
+        f"Your verification code is {code}. It expires in {OTP_MINUTES} minutes.\n\n"
+        "If you did not try to register, you can ignore this email."
+    )
+    html = build_html_email(subject, plain, campus_name=CAMPUS_NAME)
+    return send_mail(user["email"], subject, plain, html_body=html)
 
 
 def otp_hash(user_id, code):
@@ -2064,15 +2175,17 @@ def admin_review_request(user_id, action):
         return redirect(url_for("admin_requests"))
     if action == "approve":
         audit("request_approved", f"{user['name']} ({user['role']} {user['id_number']})")
-        send_mail(user["email"], f"{CAMPUS_NAME} Lost & Found: account approved",
-                  f"Hello {user['name']},\n\nYour registration was approved. You can log in now.")
+        subj = f"{CAMPUS_NAME} Lost & Found: account approved"
+        plain = f"Hello {user['name']},\n\nYour registration was approved. You can log in now."
+        send_mail(user["email"], subj, plain, html_body=build_html_email(subj, plain, campus_name=CAMPUS_NAME))
         flash(f"{user['name']} approved.", "success")
     else:
         note = request.form.get("note", "").strip()[:200]
         run("UPDATE users SET review_note = ? WHERE id = ?", note, user_id)
         audit("request_rejected", f"{user['name']} ({user['role']} {user['id_number']}) {note}")
-        send_mail(user["email"], f"{CAMPUS_NAME} Lost & Found: request not approved",
-                  f"Hello {user['name']},\n\nYour registration request was not approved. {note}")
+        subj = f"{CAMPUS_NAME} Lost & Found: request not approved"
+        plain = f"Hello {user['name']},\n\nYour registration request was not approved. {note}"
+        send_mail(user["email"], subj, plain, html_body=build_html_email(subj, plain, campus_name=CAMPUS_NAME))
         flash(f"{user['name']} rejected.", "info")
     return redirect(url_for("admin_requests"))
 
