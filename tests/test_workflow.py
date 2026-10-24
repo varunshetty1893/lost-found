@@ -176,7 +176,7 @@ class ReportAndModerationTests(WF):
         i = self.found(handover="direct", unsafe="1")
         row = self.item(i)
         self.assertEqual((row["handover_pref"], row["risk_level"], row["unsafe"]), ("admin", "high", 1))
-        self.assertIn("Refer to security", self.text(self.admin.get("/staff/queue/awaiting_receipt")))
+        self.assertIn("Tell security", self.text(self.admin.get("/staff/queue/awaiting_receipt")))
 
     def test_post_rate_limit(self):
         services.REPORTS_PER_HOUR = 2
@@ -188,6 +188,64 @@ class ReportAndModerationTests(WF):
         self.assertEqual(len(os.listdir(self.item_dir)), 2)   # rejected upload was not kept
 
 
+class DirectReturnTests(WF):
+    """A finder can reach the owner of a lost report without posting anything."""
+
+    def lost(self, client=None, **over):
+        over.setdefault("type", "lost")
+        over.setdefault("category", "Other")
+        over.setdefault("title", "Grey umbrella")
+        over.setdefault("description", "Grey umbrella with a wooden handle")
+        self.post_item(client or self.alice, **over)
+        return self.one("SELECT MAX(id) AS m FROM items")["m"]
+
+    def publish(self, item_id):
+        self.post(self.admin, f"/item/{item_id}/moderate/approve", f"/item/{item_id}")
+
+    def test_lost_report_needs_a_contact(self):
+        before = self.one("SELECT COUNT(*) AS c FROM items")["c"]
+        self.post_item(self.alice, type="lost", contact="")
+        self.post_item(self.alice, type="lost", contact="abc")
+        self.assertEqual(self.one("SELECT COUNT(*) AS c FROM items")["c"], before)
+        i = self.lost(contact="aarav@gmail.com")
+        self.assertEqual(self.item(i)["contact"], "aarav@gmail.com")
+
+    def test_contact_is_private(self):
+        i = self.lost(contact="9876501234")
+        self.publish(i)
+        self.assertNotIn("9876501234", self.text(self.carol.get(f"/item/{i}")))
+        self.assertIn("9876501234", self.text(self.alice.get(f"/item/{i}")))
+
+    def test_finder_offer_shows_both_contacts_and_owner_gets_item_back(self):
+        i = self.lost(contact="9876501234")
+        self.publish(i)
+        self.post(self.bob, f"/item/{i}/found-it", f"/item/{i}", message="Found it at the library stairs.",
+                  contact="")
+        self.assertIsNone(self.one("SELECT * FROM found_offers"))        # contact is mandatory
+        self.post(self.bob, f"/item/{i}/found-it", f"/item/{i}", message="Found it at the library stairs.",
+                  contact="diya@gmail.com")
+        offer = self.one("SELECT * FROM found_offers")
+        self.assertEqual(offer["contact"], "diya@gmail.com")
+        self.assertIn("9876501234", self.text(self.bob.get(f"/item/{i}")))   # finder now sees the owner's contact
+        self.assertIn("diya@gmail.com", self.text(self.alice.get(f"/item/{i}")))
+        self.assertIn("found your lost item", self.notes(self.alice))
+        # others cannot answer it, the owner can
+        self.post(self.carol, f"/offer/{offer['id']}/returned", f"/item/{i}")
+        self.assertEqual(self.item(i)["status"], "active")
+        self.post(self.alice, f"/offer/{offer['id']}/returned", f"/item/{i}")
+        self.assertEqual(self.item(i)["status"], "returned")
+        self.assertEqual(self.one("SELECT status FROM found_offers")["status"], "returned")
+
+    def test_cannot_offer_on_own_or_twice(self):
+        i = self.lost(contact="9876501234")
+        self.publish(i)
+        self.post(self.alice, f"/item/{i}/found-it", f"/item/{i}", message="I found my own item.", contact="9876501234")
+        self.assertIsNone(self.one("SELECT * FROM found_offers"))
+        for _ in range(2):
+            self.post(self.bob, f"/item/{i}/found-it", f"/item/{i}", message="Found it near the gate.", contact="9123456780")
+        self.assertEqual(len(self.rows("SELECT * FROM found_offers")), 1)
+
+
 class AdminHandoverTests(WF):
     """Method A: finder hands the item to the college office."""
 
@@ -196,7 +254,7 @@ class AdminHandoverTests(WF):
         i = self.found(handover="admin")
         ref = self.item(i)["ref_code"]
         # selecting the option is not custody; the item page says so
-        self.assertIn("not in custody until staff confirm", self.text(self.bob.get(f"/item/{i}")))
+        self.assertIn("not with the college until staff say they have it", self.text(self.bob.get(f"/item/{i}")))
         self.assertIn(ref, self.text(self.admin.get("/staff/queue/awaiting_receipt")))
         self.assertEqual(self.item(i)["custody_status"], "admin_handover_requested")
 
@@ -357,7 +415,7 @@ class DirectHandoverTests(WF):
         # one confirmation is not enough
         r = self.post(self.alice, f"/item/{i}/handover", f"/item/{i}", outcome="confirmed")
         self.assertIn("waiting for the other person", self.text(r))
-        self.assertIn("Handover confirmation pending", self.text(self.bob.get(f"/item/{i}")))
+        self.assertIn("Waiting for one more person", self.text(self.bob.get(f"/item/{i}")))
         self.assertEqual(self.item(i)["status"], "active")
         # retrying (double click / network retry) does not duplicate anything
         r = self.post(self.alice, f"/item/{i}/handover", f"/item/{i}", outcome="confirmed")
@@ -856,12 +914,12 @@ class PrivacyAndSecurityTests(WF):
         # the lost report owner gets a notification and a suggestion, nothing else changes
         self.assertIn("may match", self.notes(self.bob))
         page = self.text(self.bob.get(f"/item/{lost}"))
-        self.assertIn("Possible matches", page)
+        self.assertIn("Items that may match", page)
         self.assertIn("Blue water bottle", page)
         self.assertIn("Same category", page)
         self.assertEqual(self.one("SELECT COUNT(*) AS c FROM claims")["c"], 0)
         self.assertEqual(self.item(found)["custody_status"], "with_finder")
-        self.assertNotIn("Possible matches", self.text(self.carol.get(f"/item/{lost}")))
+        self.assertNotIn("Items that may match", self.text(self.carol.get(f"/item/{lost}")))
         # private details never influence a score
         a = dict(self.item(lost)); b = dict(self.item(found))
         base_score = matching.score_pair(a, b)[0]

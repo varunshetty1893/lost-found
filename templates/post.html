@@ -7,7 +7,7 @@
 <div class="page-head">
   <p class="eyebrow">Help your campus find its way back</p>
   <h1><span data-for="lost" {% if kind != 'lost' %}hidden{% endif %}>Report a lost item</span><span data-for="found" {% if kind != 'found' %}hidden{% endif %}>Report a found item</span></h1>
-  <p><span data-for="lost" {% if kind != 'lost' %}hidden{% endif %}>Tell us what you lost and where. If someone reports a matching found item, you will see it as a suggestion and can submit a claim.</span><span data-for="found" {% if kind != 'found' %}hidden{% endif %}>Thanks for helping. Describe what you found, and the real owner can send a claim with private proof.</span></p>
+  <p><span data-for="lost" {% if kind != 'lost' %}hidden{% endif %}>Tell us what you lost and where. Add your phone or email, so the person who finds it can reach you.</span><span data-for="found" {% if kind != 'found' %}hidden{% endif %}>Thanks for helping. Describe what you found, and the real owner can send a claim with private proof. Do not want to make a post? Look for the owner in the lost items. Open their report and tap “I found this”.</span></p>
 </div>
 
 <div class="form-layout">
@@ -63,6 +63,13 @@
       {% if not editing %}<label class="checkline" style="margin-top:.6rem"><input type="checkbox" name="unsafe" value="1" {{ 'checked' if form.get('unsafe') == '1' }}> This item may be unsafe (for example a weapon, drugs or a damaged battery). Do not carry it around; it goes to college security.</label>{% endif %}
     </fieldset>
 
+    <div class="field {{ 'has-error' if error_field == 'contact' }}" data-for="lost" {% if kind != 'lost' %}hidden{% endif %}>
+      <label for="f-contact">Your phone number or email <span class="req" aria-hidden="true">*</span></label>
+      <input type="text" id="f-contact" name="contact" maxlength="100" placeholder="e.g. 98765 43210 or you@gmail.com" value="{{ form.get('contact', '') }}" data-required-for="lost" autocomplete="off" {% if kind == 'lost' %}required{% endif %} {% if error_field == 'contact' %}aria-invalid="true" aria-describedby="err-contact"{% endif %}>
+      <span class="field-hint">If someone finds your item, they use this to reach you. It is hidden from everyone else. Only a person who says they found it, and college staff, can see it.</span>
+      {{ field_error('contact', error_field, 'Enter a phone number or an email address.') }}
+    </div>
+
     <div class="field {{ 'has-error' if error_field == 'description' }}">
       <div class="field-row"><label for="f-desc">Description <span class="req" aria-hidden="true">*</span></label><span class="counter" data-counter="f-desc"></span></div>
       <textarea id="f-desc" name="description" rows="5" minlength="10" maxlength="1000" placeholder="Colour, brand, marks, what was inside." required aria-describedby="desc-hint{% if error_field == 'description' %} err-description{% endif %}" {% if error_field == 'description' %}aria-invalid="true"{% endif %}>{{ form.get('description', '') }}</textarea>
@@ -105,7 +112,7 @@
       <li>Use a clear name, such as “Blue Nike backpack”, instead of “bag”.</li>
       <li>Add the exact place and date so matches are easy to spot.</li>
       <li>Put the detail only the owner would know (a sticker, what is inside) in the private field, not in the public description.</li>
-      <li>Do not put phone numbers or addresses anywhere. Contact details are never shown on a report.</li>
+      <li>Put your phone or email only in the contact box. Never write it in the description. Only a person who found your item can see it.</li>
       <li>New reports are checked by staff before they appear publicly.</li>
     </ul>
   </aside>

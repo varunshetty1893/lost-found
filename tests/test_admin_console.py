@@ -275,15 +275,15 @@ class StaffDeskTests(ConsoleBase):
         self.staff_act(self.staff, cid, "request_info", i, reason="What is the lock screen picture?")
         page = self.text(self.staff.get("/staff/queue/needs_info"))
         self.assertIn("Phone", page)
-        self.assertIn("Awaiting more information", page)
+        self.assertIn("Waiting for details", page)
         self.post(self.bob, f"/claim/{cid}/respond", f"/item/{i}", message="A photo of a beach")
         self.assertNotIn("Phone", self.text(self.staff.get("/staff/queue/needs_info")))
 
     def test_all_tabs_listed_with_counts_and_lookup_everywhere(self):
         html = self.text(self.admin.get("/staff/queue/completed"))
-        for label in ("Pending reports", "Awaiting physical acceptance", "Claims needing review",
-                      "Awaiting more information", "High-risk claims", "Disputed handovers",
-                      "Approved, awaiting handover", "Completed returns"):
+        for label in ("New reports", "Items to receive", "Claims to check",
+                      "Waiting for details", "High-risk claims", "Handover problems",
+                      "Ready to give back", "Given back"):
             self.assertIn(label, html)
         self.assertIn('action="/staff/lookup"', html)
 

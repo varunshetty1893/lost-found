@@ -64,7 +64,7 @@
 
 {% macro status_tag(status, extra='') %}
   {% if status == 'returned' %}<span class="tag tag-resolved {{ extra }}">{{ icon('check') }} Returned</span>
-  {% elif status == 'pending_review' %}<span class="tag tag-pending {{ extra }}">{{ icon('clock') }} Awaiting review</span>
+  {% elif status == 'pending_review' %}<span class="tag tag-pending {{ extra }}">{{ icon('clock') }} Waiting for staff</span>
   {% elif status == 'rejected' %}<span class="tag tag-rejected {{ extra }}">{{ icon('x') }} Not approved</span>
   {% elif status == 'closed' %}<span class="tag tag-resolved {{ extra }}">Closed</span>{% endif %}
 {% endmacro %}

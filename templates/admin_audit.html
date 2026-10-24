@@ -23,6 +23,6 @@
     {% endfor %}
     </tbody>
   </table></div>
-  {{ pager('admin_audit', page, pages, filters, total, 'entries') }}
+  {{ pager('admin_audit', page, pages, pager_args, total, 'entries', per_page, page_sizes) }}
 </section>
 {% endblock %}

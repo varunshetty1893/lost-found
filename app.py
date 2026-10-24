@@ -198,6 +198,17 @@ CREATE TABLE IF NOT EXISTS category_policy (
     risk_level TEXT NOT NULL CHECK (risk_level IN ('low', 'medium', 'high')),
     updated_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS found_offers (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    item_id INTEGER NOT NULL REFERENCES items(id) ON DELETE CASCADE,
+    finder_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    message TEXT NOT NULL,
+    contact TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'returned', 'not_mine', 'closed')),
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    UNIQUE (item_id, finder_id)
+);
 CREATE TABLE IF NOT EXISTS notifications (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -397,6 +408,7 @@ def ensure_columns(db):
         "users": [("is_custody_officer", "INTEGER NOT NULL DEFAULT 0"), ("date_of_birth", "TEXT NOT NULL DEFAULT ''"),
                   ("academic_end", "TEXT NOT NULL DEFAULT ''")],
         "roster": [("academic_end", "TEXT NOT NULL DEFAULT ''")],
+        "items": [("contact", "TEXT NOT NULL DEFAULT ''")],
         "notifications": [("kind", "TEXT NOT NULL DEFAULT 'info'")],
         "audit_log": [("record_type", "TEXT"), ("record_id", "INTEGER")],
     }
@@ -1270,6 +1282,7 @@ def _report_form(f):
         "description": f.get("description", "").strip(), "private_details": f.get("private_details", "").strip(),
         "location": f.get("location", "").strip(), "event_date": f.get("event_date", ""),
         "handover": f.get("handover", "direct"), "unsafe": f.get("unsafe") == "1",
+        "contact": f.get("contact", "").strip(),
     }
     try:
         parsed = datetime.strptime(v["event_date"], "%Y-%m-%d").date()
@@ -1298,6 +1311,10 @@ def _report_form(f):
         error, field = "The date cannot be in the future.", "event_date"
     elif v["kind"] == "found" and v["handover"] not in ("admin", "direct"):
         error, field = "Choose how you want to hand over the found item.", "handover"
+    elif v["kind"] == "lost":
+        problem = services.contact_problem(v["contact"])
+        if problem:
+            error, field = problem, "contact"
     return v, error, field
 
 
@@ -1334,7 +1351,8 @@ def post_item():
                     get_db(), user, kind=v["kind"], title=v["title"], category=v["category"],
                     description=v["description"], private_details=v["private_details"], location=v["location"],
                     event_date=v["event_date"], photo=photo, handover_pref=v["handover"] if v["kind"] == "found" else None,
-                    unsafe=v["unsafe"], moderation_required=MODERATION_REQUIRED)
+                    unsafe=v["unsafe"], moderation_required=MODERATION_REQUIRED,
+                    contact=v["contact"] if v["kind"] == "lost" else "")
             except WorkflowError as exc:
                 delete_file(ITEM_DIR, photo)
                 error, field = exc.message, None
@@ -1370,14 +1388,15 @@ def edit_item(item_id):
             if act(services.edit_report, user, item_id, title=v["title"], category=v["category"],
                    description=v["description"], private_details=v["private_details"], location=v["location"],
                    event_date=v["event_date"], handover_pref=v["handover"] if item["type"] == "found" else None,
-                   ok="Report updated."):
+                   contact=v["contact"] if item["type"] == "lost" else "", ok="Report updated."):
                 return redirect(url_for("item_detail", item_id=item_id))
             return redirect(url_for("item_detail", item_id=item_id))
         flash(error, "error")
         return render_template("post.html", form=request.form, today=today, error_field=field, editing=item)
     form = {"type": item["type"], "title": item["title"], "category": item["category"],
             "description": item["description"], "private_details": item["private_details"],
-            "location": item["location"], "event_date": item["event_date"], "handover": item["handover_pref"]}
+            "location": item["location"], "event_date": item["event_date"], "handover": item["handover_pref"],
+            "contact": item["contact"]}
     return render_template("post.html", form=form, today=today, error_field=None, editing=item)
 
 
@@ -1430,18 +1449,49 @@ def item_detail(item_id):
                 "LEFT JOIN users s ON s.id = custody_events.staff_id WHERE item_id = ? ORDER BY custody_events.id",
                 item_id) if (owner or staff) else []
     matches = matching.find_matches(get_db(), item) if (owner or staff) and item["status"] == "active" else []
+    offers, my_offer = [], None
+    if not found:
+        if owner or staff:
+            offers = qa("SELECT found_offers.*, users.name AS finder_name, users.role AS finder_role, "
+                        "users.department AS finder_dept FROM found_offers JOIN users ON users.id = found_offers.finder_id "
+                        "WHERE item_id = ? ORDER BY found_offers.id", item_id)
+        my_offer = q1("SELECT * FROM found_offers WHERE item_id = ? AND finder_id = ?", item_id, user["id"])
+    can_offer = (not found and not owner and item["status"] == "active" and my_offer is None)
     can_claim = (found and not owner and item["status"] == "active" and my_claim is None
                  and item["custody_status"] not in ("returned", "disputed") and not item["approved_claim_id"])
     return render_template("item.html", item=item, claims=claims, my_claim=my_claim, my_evidence=my_evidence,
                            matches=matches, owner=owner, staff=staff, approved=approved, claimant_is_me=claimant_is_me,
                            participant=participant, mode=mode, counterpart=counterpart, confirmations=confirmations,
                            my_confirmation=my_confirmation, stage=stage, events=events, can_claim=can_claim,
+                           offers=offers, my_offer=my_offer, can_offer=can_offer,
                            has_claims=bool(claims) if (owner or staff) else bool(q1("SELECT 1 FROM claims WHERE item_id = ?", item_id)),
                            admin=user["role"] == "admin", now_date=date.today().isoformat())
 
 
 def back_to_item(item_id):
     return redirect(url_for("item_detail", item_id=item_id))
+
+
+# ---- "I found this" (a finder contacts the owner of a lost report directly, no found report needed)
+@app.route("/item/<int:item_id>/found-it", methods=["POST"])
+@login_required
+def found_it(item_id):
+    get_item_or_404(item_id)
+    act(services.offer_found, current_user(), item_id, request.form.get("message", ""),
+        request.form.get("contact", ""), ok="Sent. The owner can now see your contact details. "
+                                            "Their contact details are shown below.")
+    return back_to_item(item_id)
+
+
+@app.route("/offer/<int:offer_id>/<decision>", methods=["POST"])
+@login_required
+def offer_decision(offer_id, decision):
+    row = q1("SELECT item_id FROM found_offers WHERE id = ?", offer_id)
+    if row is None:
+        abort(404)
+    act(services.decide_offer, current_user(), offer_id, decision,
+        ok="Marked as returned. We are glad you got it back." if decision == "returned" else "Okay, we marked it as not yours.")
+    return back_to_item(row["item_id"])
 
 
 # ---- claims (claimant side)
@@ -1668,17 +1718,17 @@ def notifications():
 
 
 # ================================================================ staff desk (admins and custody officers)
-QUEUES = [("pending_reports", "Pending reports", "New reports waiting to be published or rejected."),
-          ("awaiting_receipt", "Awaiting physical acceptance",
-           "Finders chose to hand the item to the college. Nothing is in custody until you confirm receipt."),
-          ("claims_review", "Claims needing review",
-           "Claims escalated to staff, competing claims, and finder claims nobody answered for a few days."),
-          ("needs_info", "Awaiting more information",
-           "Claims where the claimant was asked for more detail. Nothing to decide until they reply."),
-          ("high_risk", "High-risk claims", "Phones, laptops, wallets, ID cards and other items that always need staff."),
-          ("disputes", "Disputed handovers", "A handover one side says did not happen. Resolve before anything is released."),
-          ("awaiting_collection", "Approved, awaiting handover", "A claim is approved. Record the handover when it happens."),
-          ("completed", "Completed returns", "Items handed back to their owners.")]
+QUEUES = [("pending_reports", "New reports", "New reports that wait for you to accept or reject them."),
+          ("awaiting_receipt", "Items to receive",
+           "These finders will bring the item to the college. The item is not with the college until you confirm you have it."),
+          ("claims_review", "Claims to check",
+           "Claims sent to staff, more than one claim on an item, and claims the finder did not answer for a few days."),
+          ("needs_info", "Waiting for details",
+           "We asked the person for more details. Nothing to do until they reply."),
+          ("high_risk", "High-risk claims", "Phones, laptops, wallets, ID cards and other items that staff must always check."),
+          ("disputes", "Handover problems", "One person says the item was not given back. Sort this out before anything is given out."),
+          ("awaiting_collection", "Ready to give back", "The claim is accepted. Save the handover when it happens."),
+          ("completed", "Given back", "Items that were given back to their owners.")]
 QUEUE_NAMES = {q[0] for q in QUEUES}
 
 
@@ -1716,13 +1766,20 @@ def queue_rows(name):
 def staff_queue(name):
     if name not in QUEUE_NAMES:
         abort(404)
-    rows = queue_rows(name)
-    counts = {key: len(queue_rows(key)) for key in QUEUE_NAMES}
+    all_rows = queue_rows(name)
+    counts = {key: (len(all_rows) if key == name else len(queue_rows(key))) for key in QUEUE_NAMES}
+    per_page = admin_per_page(10)
+    total = len(all_rows)
+    pages = max(1, math.ceil(total / per_page))
+    page = min(admin_page_number(), pages)
+    rows = all_rows[(page - 1) * per_page: page * per_page]
     title, blurb = next((t, b) for k, t, b in QUEUES if k == name)
     stale = (datetime.now() - timedelta(days=services.STALE_FINDER_DAYS)).strftime(TS)
-    page = "staff_queue.html" if current_user()["role"] == "admin" else "staff_queue_plain.html"
-    return render_template(page, name=name, rows=rows, counts=counts, queues=QUEUES,
-                           title=title, blurb=blurb, stale=stale)
+    template = "staff_queue.html" if current_user()["role"] == "admin" else "staff_queue_plain.html"
+    return render_template(template, name=name, rows=rows, counts=counts, queues=QUEUES,
+                           title=title, blurb=blurb, stale=stale, total=total, page=page, pages=pages,
+                           per_page=per_page, page_sizes=ADMIN_PAGE_SIZES,
+                           pager_args=pager_extra({}, per_page, 10))
 
 
 @app.route("/staff/lookup")
@@ -1739,7 +1796,7 @@ def staff_lookup():
 # ================================================================ admin
 ADMIN_PER_PAGE = 20
 ROSTER_PER_PAGE = 10
-ROSTER_PAGE_SIZES = (10, 25, 50, 100)
+ROSTER_PAGE_SIZES = (10, 20, 50, 100)
 USER_STATUSES = ["active", "suspended", "pending_email", "pending_approval", "rejected"]
 
 
@@ -1752,6 +1809,26 @@ def admin_page_number():
         return max(1, int(request.args.get("page", "1")))
     except ValueError:
         return 1
+
+
+ADMIN_PAGE_SIZES = (10, 20, 50, 100)
+
+
+def admin_per_page(default=ADMIN_PER_PAGE):
+    """Rows per page from ?per_page=, limited to the sizes we offer."""
+    try:
+        n = int(request.args.get("per_page", default))
+    except ValueError:
+        return default
+    return n if n in ADMIN_PAGE_SIZES else default
+
+
+def pager_extra(filters, per_page, default=ADMIN_PER_PAGE):
+    """Filters plus per_page (only when it is not the default), for page links."""
+    args = dict(filters)
+    if per_page != default:
+        args["per_page"] = per_page
+    return args
 
 
 def paginate(count_sql, params, per_page=ADMIN_PER_PAGE):
@@ -1984,12 +2061,7 @@ def roster_query():
 def admin_roster():
     base, params, filters = roster_query()
     total_all = q1("SELECT COUNT(*) AS c FROM roster")["c"]
-    try:
-        per_page = int(request.args.get("per_page", ROSTER_PER_PAGE))
-    except ValueError:
-        per_page = ROSTER_PER_PAGE
-    if per_page not in ROSTER_PAGE_SIZES:
-        per_page = ROSTER_PER_PAGE
+    per_page = admin_per_page(ROSTER_PER_PAGE)
     total, pages, page, offset = paginate("SELECT COUNT(*) AS c " + base, params, per_page)
     rows = qa("SELECT roster.*, users.status AS user_status " + base +
               " ORDER BY roster.role, roster.id_number LIMIT ? OFFSET ?", *params, per_page, offset)
@@ -1998,7 +2070,7 @@ def admin_roster():
         pager_args["per_page"] = per_page
     return render_template("admin_roster.html", rows=rows, total=total, total_all=total_all,
                            page=page, pages=pages, filters=filters, q=filters["q"],
-                           per_page=per_page, page_sizes=ROSTER_PAGE_SIZES, pager_args=pager_args,
+                           per_page=per_page, page_sizes=ADMIN_PAGE_SIZES, pager_args=pager_args,
                            import_problems=session.pop("roster_import_problems", None),
                            people_tab="roster", **people_tab_counts())
 
@@ -2150,12 +2222,14 @@ def users_query():
 @admin_required
 def admin_users():
     where, params, filters = users_query()
-    total, pages, page, offset = paginate("SELECT COUNT(*) AS c FROM users " + where, params)
+    per_page = admin_per_page()
+    total, pages, page, offset = paginate("SELECT COUNT(*) AS c FROM users " + where, params, per_page)
     rows = qa("SELECT users.*, (SELECT COUNT(*) FROM items WHERE items.user_id = users.id) AS item_count "
               "FROM users " + where + " ORDER BY users.id DESC LIMIT ? OFFSET ?",
-              *params, ADMIN_PER_PAGE, offset)
+              *params, per_page, offset)
     return render_template("admin_users.html", rows=rows, total=total, page=page, pages=pages,
-                           filters=filters, statuses=USER_STATUSES, people_tab="users", **people_tab_counts())
+                           filters=filters, per_page=per_page, page_sizes=ADMIN_PAGE_SIZES,
+                           pager_args=pager_extra(filters, per_page), statuses=USER_STATUSES, people_tab="users", **people_tab_counts())
 
 
 @app.route("/admin/users/export.csv")
@@ -2343,14 +2417,16 @@ def listings_query():
 @admin_required
 def admin_listings():
     base, params, filters = listings_query()
-    total, pages, page, offset = paginate("SELECT COUNT(*) AS c " + base, params)
+    per_page = admin_per_page()
+    total, pages, page, offset = paginate("SELECT COUNT(*) AS c " + base, params, per_page)
     rows = qa("SELECT items.*, users.name AS poster, "
               "(SELECT COUNT(*) FROM claims WHERE claims.item_id = items.id) AS claim_count, "
               "(SELECT COUNT(*) FROM claims WHERE claims.item_id = items.id AND claims.status = 'pending') "
               "AS pending_claims " + base + " ORDER BY items.id DESC LIMIT ? OFFSET ?",
-              *params, ADMIN_PER_PAGE, offset)
+              *params, per_page, offset)
     return render_template("admin_listings.html", rows=rows, total=total, page=page, pages=pages,
-                           filters=filters)
+                           filters=filters, per_page=per_page, page_sizes=ADMIN_PAGE_SIZES,
+                           pager_args=pager_extra(filters, per_page))
 
 
 @app.route("/admin/listings/export.csv")
@@ -2415,12 +2491,14 @@ def audit_query():
 @admin_required
 def admin_audit():
     base, params, filters = audit_query()
-    total, pages, page, offset = paginate("SELECT COUNT(*) AS c " + base, params, 40)
-    rows = qa("SELECT audit_log.*, users.name AS actor " + base + " ORDER BY audit_log.id DESC LIMIT 40 OFFSET ?",
-              *params, offset)
+    per_page = admin_per_page(50)
+    total, pages, page, offset = paginate("SELECT COUNT(*) AS c " + base, params, per_page)
+    rows = qa("SELECT audit_log.*, users.name AS actor " + base + " ORDER BY audit_log.id DESC LIMIT ? OFFSET ?",
+              *params, per_page, offset)
     actions = [r["action"] for r in qa("SELECT DISTINCT action FROM audit_log ORDER BY action")]
     return render_template("admin_audit.html", rows=rows, total=total, page=page, pages=pages,
-                           filters=filters, actions=actions)
+                           filters=filters, actions=actions, per_page=per_page, page_sizes=ADMIN_PAGE_SIZES,
+                           pager_args=pager_extra(filters, per_page, 50))
 
 
 @app.route("/admin/audit/export.csv")

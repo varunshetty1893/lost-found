@@ -14,6 +14,7 @@ claim status    pending | needs_more_info | under_admin_review -> approved | rej
 
 Routes never write these columns directly.
 """
+import re
 import sqlite3
 from contextlib import contextmanager
 from datetime import datetime, timedelta
@@ -30,15 +31,15 @@ CLAIM_STATUSES = ("pending", "needs_more_info", "under_admin_review", "approved"
 OPEN_CLAIM = ("pending", "needs_more_info", "under_admin_review")
 RISK_LEVELS = ("low", "medium", "high")
 
-REPORT_LABELS = {"pending_review": "Awaiting review", "active": "Published", "rejected": "Not approved",
-                 "closed": "Closed", "returned": "Returned"}
+REPORT_LABELS = {"pending_review": "Waiting for staff", "active": "Live", "rejected": "Not accepted",
+                 "closed": "Closed", "returned": "Given back"}
 CUSTODY_LABELS = {"with_finder": "With the finder",
-                  "admin_handover_requested": "Awaiting deposit at the admin office",
-                  "with_admin": "In college custody", "direct_handover_pending": "Direct handover pending",
-                  "returned": "Returned to owner", "disputed": "Disputed, under admin review"}
-CLAIM_LABELS = {"pending": "Pending review", "needs_more_info": "More information requested",
-                "under_admin_review": "Under admin review", "approved": "Approved",
-                "rejected": "Not approved", "withdrawn": "Withdrawn"}
+                  "admin_handover_requested": "Waiting to be given to the college office",
+                  "with_admin": "At the college office", "direct_handover_pending": "Finder will give it back directly",
+                  "returned": "Given back to the owner", "disputed": "There is a problem, staff are checking"}
+CLAIM_LABELS = {"pending": "Waiting to be checked", "needs_more_info": "More details needed",
+                "under_admin_review": "Staff are checking", "approved": "Accepted",
+                "rejected": "Not accepted", "withdrawn": "Taken back"}
 RISK_LABELS = {"low": "Low risk", "medium": "Medium risk", "high": "High risk"}
 
 # Default risk by category. Admins can change these on the Policy page (table category_policy).
@@ -263,8 +264,22 @@ def check_report_rate(db, user):
         raise WorkflowError("You have posted a lot of reports in the last hour. Please try again later.", 429)
 
 
+def contact_problem(text):
+    """None if `text` looks like a phone number or an email address, else a short message for the user."""
+    text = (text or "").strip()
+    if not text:
+        return "Add a phone number or email so people can reach you."
+    if len(text) > 100:
+        return "Keep the contact details under 100 characters."
+    has_email = re.search(r"[^@\s]+@[^@\s]+\.[^@\s]+", text) is not None
+    digits = re.sub(r"\D", "", text)
+    if not has_email and not (7 <= len(digits) <= 15):
+        return "Enter a phone number (at least 7 digits) or an email address."
+    return None
+
+
 def create_report(db, user, *, kind, title, category, description, private_details, location, event_date,
-                  photo, handover_pref=None, unsafe=False, moderation_required=True):
+                  photo, handover_pref=None, unsafe=False, moderation_required=True, contact=""):
     """Insert a report. Selecting a handover option only records a *preference*; custody is never
     WITH_ADMIN here, because nobody has confirmed physical receipt yet."""
     if kind not in ("lost", "found"):
@@ -286,10 +301,10 @@ def create_report(db, user, *, kind, title, category, description, private_detai
         ts = _now()
         cur = db.execute(
             "INSERT INTO items (user_id, type, title, category, description, private_details, location, "
-            "event_date, photo, status, custody_status, handover_pref, risk_level, unsafe, created_at, "
-            "updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "event_date, photo, status, custody_status, handover_pref, risk_level, unsafe, contact, created_at, "
+            "updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (user["id"], kind, title, category, description, private_details, location, event_date, photo,
-             status, custody, pref, risk, 1 if unsafe else 0, ts, ts))
+             status, custody, pref, risk, 1 if unsafe else 0, contact, ts, ts))
         item_id = cur.lastrowid
         db.execute("UPDATE items SET ref_code = ? WHERE id = ?",
                    (f"LF-{datetime.now().year}-{item_id:05d}", item_id))
@@ -334,7 +349,7 @@ def moderate_report(db, actor, item_id, decision, reason=""):
 
 
 def edit_report(db, user, item_id, *, title, category, description, private_details, location, event_date,
-                handover_pref=None):
+                handover_pref=None, contact=""):
     with transaction(db):
         item = _item(db, item_id)
         if item["user_id"] != user["id"]:
@@ -356,9 +371,9 @@ def edit_report(db, user, item_id, *, title, category, description, private_deta
                 custody = "admin_handover_requested" if pref == "admin" else "with_finder"
         db.execute("UPDATE items SET title = ?, category = ?, description = ?, private_details = ?, "
                    "location = ?, event_date = ?, risk_level = ?, handover_pref = ?, custody_status = ?, "
-                   "updated_at = ? WHERE id = ?",
+                   "contact = ?, updated_at = ? WHERE id = ?",
                    (title, category, description, private_details, location, event_date, risk, pref,
-                    custody, _now(), item_id))
+                    custody, contact if item["type"] == "lost" else item["contact"], _now(), item_id))
 
 
 def close_report(db, actor, item_id, reason):
@@ -985,3 +1000,60 @@ def set_category_risk(db, actor, category, risk):
                    (category, risk, _now()))
         if old != risk:
             audit(db, actor["id"], "policy_changed", f"{category}: {old} -> {risk}", "policy", None)
+
+
+# ---------------------------------------------------------------- "I found this" (direct return, no found report)
+def offer_found(db, user, item_id, message, contact):
+    """Someone who found a lost item tells its owner, with contact details, so they can meet and hand it back."""
+    message = _clean(message, 10, 500, "A short note about where you found it")
+    problem = contact_problem(contact)
+    if problem:
+        raise WorkflowError(problem)
+    contact = contact.strip()
+    with transaction(db):
+        item = _item(db, item_id)
+        if item["type"] != "lost":
+            raise WorkflowError("This is a found report. Use “Is this yours?” if the item is yours.", 409)
+        if item["status"] != "active":
+            raise WorkflowError("This report is not open right now.", 409)
+        if item["user_id"] == user["id"]:
+            raise WorkflowError("This is your own report.", 403)
+        if db.execute("SELECT 1 FROM found_offers WHERE item_id = ? AND finder_id = ?", (item_id, user["id"])).fetchone():
+            raise WorkflowError("You already told the owner about this item.", 409)
+        ts = _now()
+        cur = db.execute("INSERT INTO found_offers (item_id, finder_id, message, contact, created_at, updated_at) "
+                         "VALUES (?, ?, ?, ?, ?, ?)", (item_id, user["id"], message, contact, ts, ts))
+        notify(db, item["user_id"], f"Someone says they found your lost item {_label(item)}. "
+               "Open it to see their message and how to reach them.", _link(item), "match")
+        audit(db, user["id"], "found_offer_sent", f"{item['ref_code']}", "item", item_id)
+    return cur.lastrowid
+
+
+def decide_offer(db, user, offer_id, decision):
+    """The owner says the item came back to them (closes the report) or that it is not theirs."""
+    if decision not in ("returned", "not_mine"):
+        raise WorkflowError("Unknown choice.")
+    with transaction(db):
+        offer = db.execute("SELECT * FROM found_offers WHERE id = ?", (offer_id,)).fetchone()
+        if offer is None:
+            raise WorkflowError("Not found.", 404)
+        item = _item(db, offer["item_id"])
+        if item["user_id"] != user["id"]:
+            raise WorkflowError("Only the owner of the report can do this.", 403)
+        if offer["status"] != "open" or item["status"] != "active":
+            raise WorkflowError("This was already answered.", 409)
+        ts = _now()
+        if decision == "not_mine":
+            db.execute("UPDATE found_offers SET status = 'not_mine', updated_at = ? WHERE id = ?", (ts, offer_id))
+            notify(db, offer["finder_id"], f"The owner of {_label(item)} says this is not their item. Thank you for trying.",
+                   _link(item), "decision")
+            return
+        _set_report_status(db, item, "returned", returned_at=ts)
+        db.execute("UPDATE found_offers SET status = 'returned', updated_at = ? WHERE id = ?", (ts, offer_id))
+        for o in db.execute("SELECT * FROM found_offers WHERE item_id = ? AND id != ? AND status = 'open'",
+                            (item["id"], offer_id)).fetchall():
+            db.execute("UPDATE found_offers SET status = 'closed', updated_at = ? WHERE id = ?", (ts, o["id"]))
+            notify(db, o["finder_id"], f"{_label(item)} is back with its owner. Thank you.", _link(item), "decision")
+        notify(db, offer["finder_id"], f"The owner confirmed they got {_label(item)} back. Thank you for helping!",
+               _link(item), "decision")
+        audit(db, user["id"], "lost_item_returned", f"{item['ref_code']} returned directly by a finder", "item", item["id"])

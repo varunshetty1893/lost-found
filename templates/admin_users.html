@@ -44,6 +44,6 @@
     {% endfor %}
     </tbody>
   </table></div>
-  {{ pager('admin_users', page, pages, filters, total, 'members') }}
+  {{ pager('admin_users', page, pages, pager_args, total, 'people', per_page, page_sizes) }}
 </section>
 {% endblock %}

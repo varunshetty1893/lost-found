@@ -82,7 +82,7 @@ class Base(unittest.TestCase):
         t = self.token(client, "/post")
         data = {"csrf_token": t, "type": "found", "title": "Black wallet", "category": "Wallets",
                 "description": "Leather wallet with a metro card", "location": "Canteen",
-                "event_date": "2026-10-01", "handover": "direct", "photo": (io.BytesIO(PNG), "w.png")}
+                "event_date": "2026-10-01", "handover": "direct", "contact": "9876543210", "photo": (io.BytesIO(PNG), "w.png")}
         data.update(over)
         return client.post("/post", data=data, content_type="multipart/form-data", follow_redirects=True)
 
@@ -555,7 +555,7 @@ class ItemFlowTests(Base):
         self.post_item(self.bob, type="found", title="Blue umbrella", category="Other",
                        description="Large umbrella left outside", location="Gate")
         page = self.bob.get("/item/2").get_data(as_text=True)
-        self.assertIn("Possible matches", page)
+        self.assertIn("Items that may match", page)
         self.assertIn("Black leather wallet", page)
         self.assertNotIn("Blue umbrella", page)
 

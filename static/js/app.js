@@ -139,6 +139,7 @@
     var sync = function () {
       var kind = (radios.filter(function (r) { return r.checked; })[0] || {}).value || "lost";
       $$("[data-for]").forEach(function (el) { el.hidden = el.getAttribute("data-for") !== kind; });
+      $$("[data-required-for]").forEach(function (el) { el.required = el.getAttribute("data-required-for") === kind; });
       if (custody) { custody.hidden = kind !== "found"; $$("input", custody).forEach(function (i) { i.disabled = kind !== "found"; }); }
       document.title = document.title.replace(/Report a (lost|found) item/, "Report a " + kind + " item");
     };
@@ -347,6 +348,39 @@
     document.addEventListener("keydown", function (e) { if (e.key === "Escape") admMenu(false); });
     window.addEventListener("resize", function () { if (window.innerWidth > 960) admMenu(false); });
   }
+
+
+  /* Scrollable tab rows: no scrollbar, but the wheel, touch and mouse-drag all work,
+     the open tab is brought into view, and the edges fade when there is more to see */
+  $$("[data-scroll-row]").forEach(function (row) {
+    var wrap = row.parentNode, down = false, startX = 0, startLeft = 0, moved = false;
+    function edges() {
+      var max = row.scrollWidth - row.clientWidth;
+      wrap.classList.toggle("can-left", row.scrollLeft > 4);
+      wrap.classList.toggle("can-right", row.scrollLeft < max - 4);
+    }
+    var cur = row.querySelector("[aria-current]");
+    if (cur) row.scrollLeft = Math.max(0, cur.offsetLeft - (row.clientWidth - cur.offsetWidth) / 2);
+    row.addEventListener("scroll", edges, { passive: true });
+    window.addEventListener("resize", edges);
+    row.addEventListener("wheel", function (e) {
+      if (row.scrollWidth <= row.clientWidth || Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return;
+      row.scrollLeft += e.deltaY; e.preventDefault();
+    }, { passive: false });
+    row.addEventListener("pointerdown", function (e) {
+      if (e.pointerType !== "mouse") return;
+      down = true; moved = false; startX = e.clientX; startLeft = row.scrollLeft;
+    });
+    window.addEventListener("pointermove", function (e) {
+      if (!down) return;
+      var dx = e.clientX - startX;
+      if (Math.abs(dx) > 4) { moved = true; row.classList.add("is-dragging"); }
+      row.scrollLeft = startLeft - dx;
+    });
+    window.addEventListener("pointerup", function () { down = false; row.classList.remove("is-dragging"); });
+    row.addEventListener("click", function (e) { if (moved) { e.preventDefault(); moved = false; } }, true);
+    edges();
+  });
 
   /* Numeric code inputs */
   $$("[data-digits]").forEach(function (el) { el.addEventListener("input", function () { el.value = el.value.replace(/\D/g, "").slice(0, 6); }); });
