@@ -1,0 +1,28 @@
+{% extends "admin_base.html" %}
+{% from "_macros.html" import icon %}
+{% from "_admin_macros.html" import page_head, pager %}
+{% block title %}Activity log{% endblock %}
+{% block admin %}
+{% call page_head('Activity log', 'A permanent record of registrations, approvals, roster changes, suspensions, handovers and deletions.') %}
+  <a class="btn btn-small" href="{{ url_for('admin_audit_export', **filters) }}">{{ icon('download') }} Export CSV</a>
+{% endcall %}
+<form class="adm-filters" method="get" role="search">
+  <input type="search" name="q" value="{{ filters.q }}" placeholder="Search details or person" aria-label="Search the audit log">
+  <select name="action" aria-label="Action"><option value="">All actions</option>{% for a in actions %}<option value="{{ a }}" {{ 'selected' if filters.action == a }}>{{ a|replace('_', ' ')|capitalize }}</option>{% endfor %}</select>
+  <button class="btn btn-primary" type="submit">Filter</button>
+  {% if filters.q or filters.action %}<a class="btn" href="{{ url_for('admin_audit') }}">Clear</a>{% endif %}
+</form>
+<section class="adm-card flush">
+  <div class="table-wrap"><table class="adm-table">
+    <thead><tr><th data-primary>When</th><th>Who</th><th>Action</th><th>Details</th></tr></thead>
+    <tbody>
+    {% for r in rows %}
+      <tr><td class="nowrap">{{ r['created_at']|stamp }}</td><td>{{ r['actor'] or 'System' }}</td><td><span class="pill pill-neutral">{{ r['action']|replace('_', ' ')|capitalize }}</span></td><td>{{ r['detail'] }}</td></tr>
+    {% else %}
+      <tr><td colspan="4" class="muted empty-row">No entries match.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+  {{ pager('admin_audit', page, pages, filters, total, 'entries') }}
+</section>
+{% endblock %}

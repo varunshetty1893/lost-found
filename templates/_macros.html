@@ -1,0 +1,157 @@
+{# Inline icon set (24px grid, stroke icons). Usage: {{ icon('search') }} #}
+{% macro icon(name, cls='') -%}
+{%- set paths = {
+ 'pin': '<path d="M20 10c0 6-8 12-8 12S4 16 4 10a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/>',
+ 'search': '<circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/>',
+ 'plus': '<path d="M12 5v14M5 12h14"/>',
+ 'calendar': '<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>',
+ 'tag': '<path d="M12 2H2v10l9.3 9.3a1 1 0 0 0 1.4 0l8.6-8.6a1 1 0 0 0 0-1.4L12 2Z"/><circle cx="7" cy="7" r="1.5"/>',
+ 'shield': '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"/><path d="m9 12 2 2 4-4"/>',
+ 'user': '<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>',
+ 'bell': '<path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.9 1.9 0 0 0 3.4 0"/>',
+ 'menu': '<path d="M4 6h16M4 12h16M4 18h16"/>',
+ 'x': '<path d="M18 6 6 18M6 6l12 12"/>',
+ 'eye': '<path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/>',
+ 'eye-off': '<path d="M9.9 4.2A10 10 0 0 1 12 5c6.4 0 10 7 10 7a17 17 0 0 1-3.2 4M6.6 6.6A17 17 0 0 0 2 12s3.6 7 10 7a10 10 0 0 0 5.4-1.6"/><path d="m2 2 20 20M9.9 9.9a3 3 0 0 0 4.2 4.2"/>',
+ 'image': '<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.1-3.1a2 2 0 0 0-2.8 0L6 21"/>',
+ 'upload': '<path d="M12 15V3M7 8l5-5 5 5"/><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>',
+ 'arrow-left': '<path d="m12 19-7-7 7-7M19 12H5"/>',
+ 'chevron-right': '<path d="m9 18 6-6-6-6"/>',
+ 'chevron-down': '<path d="m6 9 6 6 6-6"/>',
+ 'check': '<path d="M20 6 9 17l-5-5"/>',
+ 'check-circle': '<circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/>',
+ 'alert': '<circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/>',
+ 'info': '<circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/>',
+ 'box': '<path d="M21 8 12 3 3 8v8l9 5 9-5V8Z"/><path d="m3 8 9 5 9-5M12 13v8"/>',
+ 'key': '<circle cx="7.5" cy="15.5" r="4.5"/><path d="m10.7 12.3 9.8-9.8M17 6l3 3"/>',
+ 'clock': '<circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>',
+ 'dashboard': '<rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/>',
+ 'inbox': '<path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.5 5.1 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.5-6.9A2 2 0 0 0 16.7 4H7.3a2 2 0 0 0-1.8 1.1Z"/>',
+ 'handshake': '<path d="m11 17 2 2a1 1 0 1 0 3-3M14 14l2.5 2.5a1 1 0 1 0 3-3l-3.9-3.9a3 3 0 0 0-4.2 0l-.9.9a1 1 0 0 1-1.4 0l-.2-.2a1 1 0 0 1 0-1.4L12 5M2 11l2.6-2.6M22 11l-2.6-2.6M5 14l2 2a1 1 0 1 0 3-3"/>',
+ 'lock': '<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>',
+ 'mail': '<rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-10 6L2 7"/>',
+ 'phone': '<path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 1.9.7 2.8a2 2 0 0 1-.5 2.1L8 9.9a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.8.7a2 2 0 0 1 1.7 2Z"/>',
+ 'trash': '<path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/>',
+ 'undo': '<path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-15-6.7L3 13"/>',
+ 'logout': '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/>',
+ 'sparkles': '<path d="m12 3 1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9L12 3ZM19 16l.7 1.8L21.5 18.5l-1.8.7L19 21l-.7-1.8-1.8-.7 1.8-.7L19 16Z"/>',
+ 'laptop': '<rect x="3" y="4" width="18" height="12" rx="2"/><path d="M2 20h20"/>',
+ 'id-card': '<rect x="2" y="5" width="20" height="14" rx="2"/><circle cx="8.5" cy="11" r="2"/><path d="M5.5 16a3 3 0 0 1 6 0M14 9.5h5M14 13h4"/>',
+ 'book': '<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20V3H6.5A2.5 2.5 0 0 0 4 5.5v14Z"/><path d="M4 19.5A2.5 2.5 0 0 0 6.5 22H20v-5"/>',
+ 'bag': '<path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z"/><path d="M3 6h18M16 10a4 4 0 0 1-8 0"/>',
+ 'shirt': '<path d="M20.4 5.9 16 3a4 4 0 0 1-8 0L3.6 5.9a1 1 0 0 0-.5 1.2l1 3a1 1 0 0 0 1 .7H7V21h10V10.8h1.9a1 1 0 0 0 1-.7l1-3a1 1 0 0 0-.5-1.2Z"/>',
+ 'wallet': '<path d="M19 7V5a2 2 0 0 0-2-2H5a2 2 0 0 0 0 4h14a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5"/><path d="M16 14h.01"/>',
+ 'watch': '<circle cx="12" cy="12" r="6"/><path d="M12 10v2l1 1M16.1 17.4l-.6 3.4a1 1 0 0 1-1 .8H9.5a1 1 0 0 1-1-.8l-.6-3.4M16.1 6.6l-.6-3.4a1 1 0 0 0-1-.8H9.5a1 1 0 0 0-1 .8l-.6 3.4"/>',
+ 'filter': '<path d="M22 3H2l8 9.5V19l4 2v-8.5L22 3Z"/>',
+ 'compass': '<circle cx="12" cy="12" r="10"/><path d="m16.2 7.8-2.1 6.3-6.3 2.1 2.1-6.3 6.3-2.1Z"/>',
+ 'users': '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8"/>',
+ 'list': '<path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/>',
+ 'download': '<path d="M12 3v12M7 10l5 5 5-5"/><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>',
+ 'activity': '<path d="M22 12h-4l-3 9L9 3l-3 9H2"/>',
+ 'edit': '<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/>',
+ 'external': '<path d="M15 3h6v6M10 14 21 3M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>',
+ 'table': '<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M3 15h18M9 3v18"/>',
+ 'home': '<path d="m3 10 9-7 9 7v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/><path d="M9 22V12h6v10"/>',
+ 'megaphone': '<path d="m3 11 18-5v12L3 14v-3ZM11.6 16.8a3 3 0 1 1-5.8-1.6"/>'
+} -%}
+<svg class="icon {{ cls }}" viewBox="0 0 24 24" aria-hidden="true" focusable="false">{{ paths.get(name, paths['box'])|safe }}</svg>
+{%- endmacro %}
+
+{% macro category_icon(category) -%}
+{%- set m = {'Electronics': 'laptop', 'ID & Cards': 'id-card', 'Books & Notes': 'book', 'Bags': 'bag', 'Clothing': 'shirt', 'Keys': 'key', 'Wallets': 'wallet', 'Accessories': 'watch', 'Other': 'box'} -%}
+{{ icon(m.get(category, 'box')) }}
+{%- endmacro %}
+
+{% macro status_tag(status, extra='') %}
+  {% if status == 'returned' %}<span class="tag tag-resolved {{ extra }}">{{ icon('check') }} Returned</span>
+  {% elif status == 'pending_review' %}<span class="tag tag-pending {{ extra }}">{{ icon('clock') }} Awaiting review</span>
+  {% elif status == 'rejected' %}<span class="tag tag-rejected {{ extra }}">{{ icon('x') }} Not approved</span>
+  {% elif status == 'closed' %}<span class="tag tag-resolved {{ extra }}">Closed</span>{% endif %}
+{% endmacro %}
+
+{# Custody is a separate state from the report status: where the physical item is, as confirmed. #}
+{% macro custody_tag(item, extra='') %}
+  {% set c = item['custody_status'] %}
+  {% if item['type'] == 'found' and c %}
+    <span class="tag tag-custody-{{ c }} {{ extra }}">{{ icon('box') }} {{ c|custody_label }}</span>
+  {% endif %}
+{% endmacro %}
+
+{% macro claim_tag(status) %}<span class="tag tag-claim-{{ status }}">{{ status|claim_label }}</span>{% endmacro %}
+
+{% macro type_tag(kind) %}<span class="tag tag-{{ kind }}">{{ icon('megaphone' if kind == 'lost' else 'compass') }} {{ kind|capitalize }}</span>{% endmacro %}
+
+{% macro role_badge(role) %}<span class="badge badge-{{ role }}">{{ role|role_label }}</span>{% endmacro %}
+
+{# Photo or category placeholder; never a broken image #}
+{% macro photo_or_placeholder(item, big=False, label=True) %}
+  {% if item['photo'] %}
+    <img src="{{ url_for('media', name=item['photo']) }}" alt="Photo of {{ item['title'] }}" loading="lazy" onerror="this.outerHTML='&lt;div class=&quot;ph&quot;&gt;Photo unavailable&lt;/div&gt;'">
+  {% else %}
+    <div class="ph is-{{ item['type'] }}{{ ' big' if big }}">{{ category_icon(item['category']) }}{% if label %}<span>No photo added</span>{% endif %}</div>
+  {% endif %}
+{% endmacro %}
+
+{% macro listing_card(item) %}
+<a class="listing" href="{{ url_for('item_detail', item_id=item['id']) }}">
+  <div class="listing-media">
+    {{ photo_or_placeholder(item) }}
+    <div class="listing-badges" aria-hidden="true">{{ type_tag(item['type']) }}{{ status_tag(item['status']) }}{% if item['status'] == 'active' %}{{ custody_tag(item) }}{% endif %}</div>
+  </div>
+  <div class="listing-body">
+    <div class="listing-tags">{{ type_tag(item['type']) }}{{ status_tag(item['status']) }}{% if item['status'] == 'active' %}{{ custody_tag(item) }}{% endif %}</div>
+    <h3 class="listing-title">{{ item['title'] }}</h3>
+    <ul class="listing-meta">
+      <li>{{ icon('tag') }}<span>{{ item['category'] }}</span></li>
+      <li>{{ icon('pin') }}<span>{{ item['location'] }}</span></li>
+      <li>{{ icon('calendar') }}<span>{{ 'Lost' if item['type'] == 'lost' else 'Found' }} {{ item['event_date']|pretty_date }}</span></li>
+    </ul>
+  </div>
+</a>
+{% endmacro %}
+
+{% macro field_error(name, error_field, message) %}
+  {% if error_field == name %}<div class="field-error" id="err-{{ name }}" role="alert">{{ icon('alert') }}<span>{{ message }}</span></div>{% endif %}
+{% endmacro %}
+
+{% macro password_field(id, name, label, autocomplete, minlength=None, hint=None, rules=False, match=None) %}
+<div class="field">
+  <label for="{{ id }}">{{ label }}</label>
+  <div class="pw-wrap">
+    <span class="pw-lead" aria-hidden="true">{{ icon('lock') }}</span>
+    <input type="password" id="{{ id }}" name="{{ name }}" required autocomplete="{{ autocomplete }}"{% if minlength %} minlength="{{ minlength }}"{% endif %} maxlength="128"{% if match %} data-match="{{ match }}"{% endif %}>
+    <button type="button" class="pw-toggle" data-pw-toggle="{{ id }}" aria-pressed="false" aria-label="Show password">
+      <span class="i-on">{{ icon('eye') }}</span><span class="i-off">{{ icon('eye-off') }}</span>
+    </button>
+  </div>
+  {% if hint %}<span class="field-hint">{{ hint }}</span>{% endif %}
+  {% if match %}<span class="field-hint" data-match-msg="{{ id }}" aria-live="polite"></span>{% endif %}
+  {% if rules %}
+  <div class="pw-strength" aria-hidden="true">
+    <div class="pw-meter" data-pw-meter="{{ id }}" data-level="0"><i></i><i></i><i></i><i></i></div>
+    <span class="pw-meter-label" data-pw-meter-label="{{ id }}"></span>
+  </div>
+  <ul class="rules" data-pw-rules="{{ id }}" aria-label="Password requirements">
+    <li data-rule="length">8+ characters</li><li data-rule="letter">A letter</li><li data-rule="number">A number</li>
+  </ul>
+  {% endif %}
+</div>
+{% endmacro %}
+
+{# Department dropdown (students: academic only; staff: academic + administrative + support) with an "Other" escape hatch.
+   Posts department and department_other. app.js hides the staff-only groups while "Student" is selected. #}
+{% macro department_field(form) %}
+{% set cur = form.get('department', '') %}
+<div class="field">
+  <label for="department">Department</label>
+  <select id="department" name="department" required data-dept-select>
+    <option value="" disabled {{ 'selected' if not cur }}>Select your department</option>
+    {% for group, opts, audience in department_groups() %}
+    <optgroup label="{{ group }}" data-audience="{{ audience }}">{% for value, text in opts %}<option value="{{ value }}" {{ 'selected' if value == cur }}>{{ text }}</option>{% endfor %}</optgroup>
+    {% endfor %}
+    <option value="__other__" {{ 'selected' if cur == '__other__' }}>Other (type it)</option>
+  </select>
+  <span class="field-hint" data-dept-hint>MCA, BCA and BSc CS all come under Computer Science.</span>
+  <input type="text" id="department_other" name="department_other" class="dept-other" value="{{ form.get('department_other', '') }}" placeholder="Type your department" minlength="2" maxlength="80" autocomplete="off" data-dept-other {{ 'required' if cur == '__other__' else 'hidden' }}>
+</div>
+{% endmacro %}

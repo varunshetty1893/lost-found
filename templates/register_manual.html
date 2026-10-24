@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% from "_macros.html" import icon, password_field, department_field %}
+{% block title %}Manual verification - {{ campus }} Lost &amp; Found{% endblock %}
+{% block content %}
+<div class="auth">
+  {% include "_auth_aside.html" %}
+  <div class="auth-main">
+    <p class="eyebrow">Membership review</p>
+    <h1>Request manual verification</h1>
+    <p class="lede">Not in the college records yet? Upload a clear photo of your ID card. An admin checks it before your account is activated, and only admins can see the photo.</p>
+    <form method="post" enctype="multipart/form-data" data-submit-once>
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <fieldset class="field">
+      <legend class="field-label">I am a</legend>
+      <div class="segmented">
+        <label><input type="radio" name="role" value="student" required {{ 'checked' if form.get('role', 'student') == 'student' }}>Student</label>
+        <label><input type="radio" name="role" value="staff" {{ 'checked' if form.get('role') == 'staff' }}>Staff member</label>
+      </div>
+    </fieldset>
+      <div class="field"><label for="name">Full name <span class="opt">(as on the ID card)</span></label><input type="text" id="name" name="name" value="{{ form.get('name', '') }}" required minlength="2" maxlength="60" autocomplete="name"></div>
+      <div class="form-grid">
+        <div class="field"><label for="id_number">ID card number</label><input type="text" id="id_number" name="id_number" value="{{ form.get('id_number', '') }}" required minlength="2" maxlength="20" pattern="[A-Za-z0-9][A-Za-z0-9_\-\/]{1,19}" title="2 to 20 letters or digits" autocomplete="off"></div>
+        {{ department_field(form) }}
+      </div>
+      <div class="form-grid">
+        <div class="field"><label for="email">Email</label><input type="email" id="email" name="email" value="{{ form.get('email', '') }}" required maxlength="120" autocomplete="email"></div>
+        <div class="field"><label for="phone">Phone number</label><input type="tel" id="phone" name="phone" value="{{ form.get('phone', '') }}" placeholder="98765 43210" required inputmode="tel" pattern="\+?[0-9][0-9 \-]{6,14}" maxlength="16" autocomplete="off" data-phone title="7 to 15 digits, for example 98765 43210"></div>
+      </div>
+      <div class="field"><label for="dob">Date of birth</label><input type="date" id="dob" name="dob" value="{{ form.get('dob', '') }}" required min="1926-01-01" max="{{ today_iso() }}" autocomplete="bday"></div>
+      {{ password_field('password', 'password', 'Create a password', 'new-password', minlength=8, rules=True) }}
+      {{ password_field('confirm_password', 'confirm_password', 'Confirm password', 'new-password', minlength=8, match='password') }}
+      <div class="field">
+        <span class="field-label">Photo of your ID card</span>
+        <div class="dropzone" data-dropzone>
+          <input type="file" name="id_card" accept="image/png,image/jpeg,image/webp" required aria-label="Photo of your ID card" aria-describedby="card-hint">
+          <div data-dz-empty>{{ icon('upload') }}<strong>Tap to add your ID card photo</strong><span class="small">PNG, JPG or WEBP, up to 5 MB</span></div>
+          <div class="dropzone-preview" data-dz-preview hidden>
+            <img alt="Preview of your ID card photo" src="">
+            <div class="meta"><strong data-dz-name></strong></div>
+            <button type="button" class="btn btn-small remove-file" data-dz-remove>{{ icon('x') }} Remove</button>
+          </div>
+        </div>
+        <span class="field-hint" id="card-hint">Stored privately. Only admins can open it.</span>
+        <div class="field-error" data-dz-error hidden role="alert"></div>
+      </div>
+      <button class="btn btn-primary btn-block" type="submit" data-loading-text="Sending request…"><span data-label>Send request</span></button>
+    </form>
+    <p class="auth-foot"><a href="{{ url_for('register') }}">Back to normal registration</a></p>
+  </div>
+</div>
+{% endblock %}

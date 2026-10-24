@@ -1,0 +1,44 @@
+{% extends "admin_base.html" %}
+{% from "_macros.html" import icon, role_badge %}
+{% from "_admin_macros.html" import page_head %}
+{% block title %}Approvals{% endblock %}
+{% block admin %}
+{% call page_head('Approvals', 'People who are not on the campus list uploaded an ID card. Check the photo matches the details, then approve or reject.') %}{% endcall %}
+{% if rows %}
+  {% for u in rows %}
+  <section class="adm-card request">
+    <div class="request-card">
+      <a href="{{ url_for('admin_idcard', user_id=u['id']) }}" target="_blank" rel="noopener" title="Open full size"><img src="{{ url_for('admin_idcard', user_id=u['id']) }}" alt="ID card of {{ u['name'] }}"></a>
+      <div>
+        <h2>{{ u['name'] }} {{ role_badge(u['role']) }}</h2>
+        <dl class="kv">
+          <div><dt>ID number</dt><dd>{{ u['id_number'] }}</dd></div>
+          <div><dt>Department</dt><dd>{{ u['department'] or '-' }}</dd></div>
+          <div><dt>Email</dt><dd>{{ u['email'] }}</dd></div>
+          <div><dt>Phone</dt><dd>{{ u['phone'] or '-' }}</dd></div>
+          <div><dt>Requested</dt><dd>{{ u['created_at']|stamp }}</dd></div>
+          <div><dt>Roster check</dt><dd>
+            {% if not u['roster_id'] %}<span class="pill pill-active">Not in roster</span>
+            {% else %}<span class="pill pill-pending_approval">ID is in roster as {{ u['roster_name'] }}</span>
+              <span class="muted small">roster email: {{ u['roster_email'] }}</span>{% endif %}
+          </dd></div>
+        </dl>
+        <div class="adm-actions">
+          <form method="post" action="{{ url_for('admin_review_request', user_id=u['id'], action='approve') }}" class="inline">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <button class="btn btn-found" type="submit">{{ icon('check') }} Approve</button>
+          </form>
+          <form method="post" action="{{ url_for('admin_review_request', user_id=u['id'], action='reject') }}" class="inline-form reject-form">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <input type="text" name="note" maxlength="200" placeholder="Reason (optional, emailed to them)" aria-label="Rejection reason">
+            <button class="btn btn-danger" type="submit">Reject</button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </section>
+  {% endfor %}
+{% else %}
+  <section class="adm-card empty">{{ icon('check-circle') }}<h2>Queue is empty</h2><p class="muted">No ID requests are waiting for review.</p></section>
+{% endif %}
+{% endblock %}

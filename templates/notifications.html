@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% from "_macros.html" import icon %}
+{% block title %}Alerts - {{ campus }} Lost &amp; Found{% endblock %}
+{% block content %}
+<div class="page-head"><p class="eyebrow">Account updates</p><h1>Alerts</h1><p>New claims, approvals and handovers appear here.</p></div>
+<section class="surface">
+  {% if rows %}
+  <ul class="notice-list">
+    {% for n in rows %}
+    <li class="notice {{ 'unread' if not n['is_read'] }}">
+      <span class="notice-icon">{{ icon('bell') }}</span>
+      <div>
+        {% if n['link'] %}<a href="{{ n['link'] }}">{{ n['message'] }}</a>{% else %}{{ n['message'] }}{% endif %}
+        <span class="when">{{ n['created_at']|stamp }}{% if not n['is_read'] %} &middot; New{% endif %}</span>
+      </div>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <div class="empty" style="border:0;padding:1.5rem 0">
+    <div class="empty-icon">{{ icon('bell') }}</div>
+    <h3>No alerts yet</h3>
+    <p>You will see new claims and approvals here.</p>
+    <a class="btn btn-primary" href="{{ url_for('index') }}">Browse listings</a>
+  </div>
+  {% endif %}
+</section>
+{% endblock %}

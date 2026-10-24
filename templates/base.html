@@ -1,0 +1,146 @@
+{% from "_macros.html" import icon %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0b3249">
+  <title>{% block title %}{{ campus }} Lost &amp; Found{% endblock %}</title>
+  <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='img/favicon.svg') }}">
+  <link rel="icon" type="image/x-icon" sizes="any" href="{{ url_for('static', filename='img/favicon.ico') }}">
+  <link rel="apple-touch-icon" href="{{ url_for('static', filename='img/apple-touch-icon.png') }}">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/modern.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/polish.css') }}">
+  <script>document.documentElement.classList.add('js');</script>
+  <script src="{{ url_for('static', filename='js/app.js') }}" defer></script>
+</head>
+<body class="{{ 'has-tabbar ' if me }}ep-{{ request.endpoint or 'none' }}">
+  <a class="skip-link" href="#main-content">Skip to content</a>
+  {% set ep = request.endpoint %}
+  <header class="site-header">
+    <div class="wrap header-inner">
+      <a class="brand" href="{{ url_for('index') }}" aria-label="{{ campus }} Lost and Found home">
+        <span class="brand-mark">{{ icon('search') }}</span>
+        <span>{{ campus }} Lost &amp; Found<small>Verified campus members</small></span>
+      </a>
+      <button class="nav-toggle" type="button" data-nav-toggle aria-expanded="false" aria-controls="site-nav" aria-label="Menu">
+        <span class="i-open">{{ icon('menu') }}</span><span class="i-close">{{ icon('x') }}</span>
+      </button>
+      <nav class="site-nav" id="site-nav" aria-label="Main navigation">
+        {% if me %}
+          <a class="nav-link" href="{{ url_for('index') }}" {% if ep == 'index' %}aria-current="page"{% endif %}>{{ icon('search') }} Browse</a>
+          <a class="nav-link" href="{{ url_for('dashboard') }}" {% if ep == 'dashboard' %}aria-current="page"{% endif %}>{{ icon('dashboard') }} Dashboard</a>
+          <a class="nav-link" href="{{ url_for('notifications') }}" {% if ep == 'notifications' %}aria-current="page"{% endif %}>{{ icon('bell') }} Alerts{% if unread %} <span class="nav-badge" aria-label="{{ unread }} unread">{{ unread }}</span>{% endif %}</a>
+          {% if me['role'] == 'admin' %}<a class="btn btn-primary btn-small admin-cta" href="{{ url_for('admin_home') }}">{{ icon('shield') }} Admin console</a>
+          {% elif is_staff %}<a class="btn btn-primary btn-small admin-cta" href="{{ url_for('staff_queue', name='awaiting_receipt') }}">{{ icon('shield') }} Staff desk</a>{% endif %}
+          <div class="nav-actions">
+            <a class="btn btn-lost btn-small" href="{{ url_for('post_item', type='lost') }}">{{ icon('plus') }} Report lost</a>
+            <a class="btn btn-found btn-small" href="{{ url_for('post_item', type='found') }}">{{ icon('plus') }} Report found</a>
+          </div>
+          <details class="user-menu">
+            <summary aria-label="Signed in as {{ me['name'] }}, {{ me['role'] }}, {{ me['department'] }}. Account menu">
+              <span class="avatar" aria-hidden="true">{{ me['name'][:1] }}</span>
+              <span class="user-chip-name" aria-hidden="true">{{ me['name'].split()[0] }}</span>
+              {{ icon('chevron-down') }}
+            </summary>
+            <div class="menu-panel">
+              <div class="menu-id"><strong>{{ me['name'] }}</strong><span>{{ me['role']|capitalize }}{% if me['department'] %} · {{ me['department'] }}{% endif %}</span></div>
+              <a class="menu-item" href="{{ url_for('dashboard') }}">{{ icon('user') }} My listings &amp; claims</a>
+              <a class="menu-item" href="{{ url_for('notifications') }}">{{ icon('bell') }} Alerts</a>
+              <form method="post" action="{{ url_for('logout') }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <button class="menu-item danger" type="submit">{{ icon('logout') }} Log out</button>
+              </form>
+            </div>
+          </details>
+        {% else %}
+          <a class="nav-link" href="{{ url_for('login') }}" {% if ep == 'login' %}aria-current="page"{% endif %}>Log in</a>
+          <div class="nav-actions"><a class="btn btn-primary btn-small" href="{{ url_for('register') }}">Register</a></div>
+        {% endif %}
+      </nav>
+    </div>
+  </header>
+  <main class="wrap" id="main-content" tabindex="-1">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+      <div class="flashes">
+        {% for category, message in messages %}
+        <div class="flash flash-{{ category }}" role="{{ 'alert' if category == 'error' else 'status' }}" data-flash>
+          {{ icon({'success': 'check-circle', 'error': 'alert'}.get(category, 'info')) }}
+          <span class="flash-text">{{ message }}</span>
+          <button type="button" class="flash-close" data-flash-close aria-label="Dismiss message">{{ icon('x') }}</button>
+        </div>
+        {% endfor %}
+      </div>
+      {% endif %}
+    {% endwith %}
+    {% block content %}{% endblock %}
+  </main>
+  <footer class="site-footer">
+    <div class="wrap">
+      <div class="footer-grid">
+        <div>
+          <span class="brand"><span class="brand-mark">{{ icon('search') }}</span> {{ campus }} Lost &amp; Found</span>
+          <p>A private lost-and-found service for verified campus students and staff.</p>
+        </div>
+        <div>
+          <h4>Quick links</h4>
+          <ul>
+            {% if me %}
+            <li><a href="{{ url_for('index') }}">Browse listings</a></li>
+            <li><a href="{{ url_for('post_item', type='lost') }}">Report a lost item</a></li>
+            <li><a href="{{ url_for('post_item', type='found') }}">Report a found item</a></li>
+            <li><a href="{{ url_for('dashboard') }}">My dashboard</a></li>
+            {% else %}
+            <li><a href="{{ url_for('login') }}">Log in</a></li>
+            <li><a href="{{ url_for('register') }}">Register with your campus ID</a></li>
+            <li><a href="{{ url_for('register_manual') }}">Manual verification</a></li>
+            {% endif %}
+          </ul>
+        </div>
+        <div>
+          <h4>Your privacy</h4>
+          <p>Listings and photos are visible to verified members only. Your email and phone are shared only after a claim is approved.</p>
+        </div>
+      </div>
+      <div class="footer-base"><span>&copy; {{ campus }} Lost &amp; Found</span><span>Open to verified students and staff only</span></div>
+    </div>
+  </footer>
+  {% if me %}
+  <nav class="tabbar" aria-label="Primary">
+    <a class="tab" href="{{ url_for('index') }}" {% if ep == 'index' %}aria-current="page"{% endif %}>{{ icon('search') }}<span>Browse</span></a>
+    <a class="tab" href="{{ url_for('dashboard') }}" {% if ep == 'dashboard' %}aria-current="page"{% endif %}>{{ icon('dashboard') }}<span>My items</span></a>
+    <button class="tab tab-report" type="button" data-open-dialog="report-sheet" aria-haspopup="dialog"><span class="tab-plus">{{ icon('plus') }}</span><span>Report</span></button>
+    <a class="tab" href="{{ url_for('notifications') }}" {% if ep == 'notifications' %}aria-current="page"{% endif %}>{{ icon('bell') }}<span>Alerts</span>{% if unread %}<b class="tab-badge" aria-label="{{ unread }} unread">{{ unread }}</b>{% endif %}</a>
+    <button class="tab" type="button" data-open-dialog="account-sheet" aria-haspopup="dialog">{{ icon('user') }}<span>Account</span></button>
+  </nav>
+
+  <dialog class="sheet" id="report-sheet" aria-labelledby="report-sheet-title">
+    <div class="sheet-grip" aria-hidden="true"></div>
+    <div class="sheet-body">
+      <h2 id="report-sheet-title">What happened?</h2>
+      <a class="sheet-opt is-lost" href="{{ url_for('post_item', type='lost') }}"><span class="opt-icon">{{ icon('megaphone') }}</span><span><strong>I lost something</strong><span class="sub">Describe it so finders and matches can reach you.</span></span></a>
+      <a class="sheet-opt is-found" href="{{ url_for('post_item', type='found') }}"><span class="opt-icon">{{ icon('compass') }}</span><span><strong>I found something</strong><span class="sub">Help the owner get it back safely.</span></span></a>
+      <button class="sheet-link" type="button" data-dialog-close>Cancel</button>
+    </div>
+  </dialog>
+
+  <dialog class="sheet" id="account-sheet" aria-label="Account">
+    <div class="sheet-grip" aria-hidden="true"></div>
+    <div class="sheet-body">
+      <div class="sheet-id"><span class="avatar lg" aria-hidden="true">{{ me['name'][:1] }}</span><div><strong>{{ me['name'] }}</strong><span>{{ me['role']|capitalize }}{% if me['department'] %} · {{ me['department'] }}{% endif %}</span></div></div>
+      {% if me['role'] == 'admin' %}<a class="sheet-link" href="{{ url_for('admin_home') }}">{{ icon('shield') }} Admin console</a>
+      {% elif is_staff %}<a class="sheet-link" href="{{ url_for('staff_queue', name='awaiting_receipt') }}">{{ icon('shield') }} Staff desk</a>{% endif %}
+      <a class="sheet-link" href="{{ url_for('dashboard') }}">{{ icon('user') }} My listings &amp; claims</a>
+      <form method="post" action="{{ url_for('logout') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <button class="sheet-link danger" type="submit">{{ icon('logout') }} Log out</button>
+      </form>
+    </div>
+  </dialog>
+  {% endif %}
+</body>
+</html>

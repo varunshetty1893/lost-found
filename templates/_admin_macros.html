@@ -1,0 +1,50 @@
+{% from "_macros.html" import icon %}
+
+{# Pagination. endpoint = admin endpoint name, args = current filters (dict).
+   Pass per_page to also show a "Showing 1-10 of 42" range and a rows-per-page picker (per_page_options). #}
+{% macro pager(endpoint, page, pages, args, total=None, noun='results', per_page=None, per_page_options=None) %}
+{% set base = args.copy() %}
+{% set _ = base.pop('page', None) %}
+<div class="adm-pager">
+  <div class="pager-info muted small">
+    {% if total is not none %}
+      {% if per_page and total %}Showing <b>{{ (page - 1) * per_page + 1 }}&ndash;{{ [page * per_page, total]|min }}</b> of <b>{{ total }}</b> {{ noun }}
+      {% else %}{{ total }} {{ noun }}{% if pages > 1 %} &middot; page {{ page }} of {{ pages }}{% endif %}{% endif %}
+    {% endif %}
+  </div>
+  {% if per_page and per_page_options %}
+  <form class="pager-size" method="get" action="{{ url_for(endpoint) }}">
+    {% for k, v in base.items() if k != 'per_page' and v %}<input type="hidden" name="{{ k }}" value="{{ v }}">{% endfor %}
+    <label for="pager-size-{{ endpoint }}">Rows</label>
+    <select id="pager-size-{{ endpoint }}" name="per_page" data-autosubmit>
+      {% for n in per_page_options %}<option value="{{ n }}" {{ 'selected' if n == per_page }}>{{ n }}</option>{% endfor %}
+    </select>
+  </form>
+  {% endif %}
+  {% if pages > 1 %}
+  {% set shown = [1, pages] + range([page - 1, 1]|max, [page + 1, pages]|min + 1)|list %}
+  {% set shown = shown|unique|sort|list %}
+  <nav class="pager-nav" aria-label="Pagination">
+    {% if page > 1 %}{% set _ = base.update({'page': page - 1}) %}<a class="pg pg-step" href="{{ url_for(endpoint, **base) }}" aria-label="Previous page">&lsaquo;<span class="pg-word"> Prev</span></a>{% else %}<span class="pg pg-step is-off" aria-hidden="true">&lsaquo;<span class="pg-word"> Prev</span></span>{% endif %}
+    {% for n in shown %}
+      {% if not loop.first and n - shown[loop.index0 - 1] > 1 %}<span class="pg pg-gap" aria-hidden="true">&hellip;</span>{% endif %}
+      {% if n == page %}<span class="pg is-current" aria-current="page">{{ n }}</span>
+      {% else %}{% set _ = base.update({'page': n}) %}<a class="pg" href="{{ url_for(endpoint, **base) }}" aria-label="Page {{ n }}">{{ n }}</a>{% endif %}
+    {% endfor %}
+    {% if page < pages %}{% set _ = base.update({'page': page + 1}) %}<a class="pg pg-step" href="{{ url_for(endpoint, **base) }}" aria-label="Next page"><span class="pg-word">Next </span>&rsaquo;</a>{% else %}<span class="pg pg-step is-off" aria-hidden="true"><span class="pg-word">Next </span>&rsaquo;</span>{% endif %}
+  </nav>
+  {% endif %}
+</div>
+{% endmacro %}
+
+{% macro status_pill(status) %}
+{% set labels = {'active': 'Active', 'suspended': 'Suspended', 'pending_email': 'Email not verified', 'pending_approval': 'Awaiting review', 'rejected': 'Rejected', 'pending_review': 'Awaiting review', 'closed': 'Closed', 'returned': 'Returned'} %}
+<span class="pill pill-{{ status }}">{{ labels.get(status, status|replace('_', ' ')|capitalize) }}</span>
+{% endmacro %}
+
+{% macro page_head(title, sub='') %}
+<div class="adm-head">
+  <div><h1>{{ title }}</h1>{% if sub %}<p class="muted">{{ sub }}</p>{% endif %}</div>
+  <div class="adm-head-actions">{{ caller() if caller else '' }}</div>
+</div>
+{% endmacro %}

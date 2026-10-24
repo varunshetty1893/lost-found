@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+{% from "_macros.html" import icon, listing_card %}
+{% block title %}Browse listings - {{ campus }} Lost &amp; Found{% endblock %}
+{% block content %}
+<section class="hero" aria-labelledby="home-title">
+  <div>
+    <p class="eyebrow">The campus recovery board</p>
+    <h1 id="home-title">What are you looking for today?</h1>
+    <p>Search the listings first. If your item is not there, report it so the community can help.</p>
+    <div class="hero-actions">
+      <a class="btn btn-lost" href="{{ url_for('post_item', type='lost') }}">{{ icon('megaphone') }} I lost something</a>
+      <a class="btn btn-light" href="{{ url_for('post_item', type='found') }}">{{ icon('compass') }} I found something</a>
+    </div>
+  </div>
+  <div class="stats" aria-label="Campus totals">
+    <div class="stat"><strong>{{ stats['lost'] }}</strong><span><i class="dot dot-lost"></i>items still lost</span></div>
+    <div class="stat"><strong>{{ stats['found'] }}</strong><span><i class="dot dot-found"></i>found, awaiting owners</span></div>
+    <div class="stat"><strong>{{ stats['returned'] }}</strong><span><i class="dot dot-ret"></i>returned to owners</span></div>
+  </div>
+</section>
+
+<form class="searchpanel" method="get" action="{{ url_for('index') }}" role="search" data-submit-once>
+  <div class="searchrow">
+    <div class="searchbox">
+      {{ icon('search') }}
+      <input type="search" name="q" value="{{ q }}" placeholder="Search items, places or details" aria-label="Search listings" maxlength="100">
+    </div>
+    <button class="btn btn-primary" type="submit"><span data-label>Search</span></button>
+  </div>
+  {% if kind %}<input type="hidden" name="type" value="{{ kind }}">{% endif %}
+  <div class="filterrow">
+    <div class="seg-links" role="group" aria-label="Lost or found">
+      <a href="{{ url_for('index', **dict(qargs, type=None)) }}" aria-current="{{ 'true' if not kind else 'false' }}">All</a>
+      <a href="{{ url_for('index', **dict(qargs, type='lost')) }}" aria-current="{{ 'true' if kind == 'lost' else 'false' }}">Lost</a>
+      <a href="{{ url_for('index', **dict(qargs, type='found')) }}" aria-current="{{ 'true' if kind == 'found' else 'false' }}">Found</a>
+    </div>
+    <select name="category" aria-label="Category" data-autosubmit>
+      <option value="">All categories</option>
+      {% for c in categories %}<option value="{{ c }}" {{ 'selected' if category == c }}>{{ c }}</option>{% endfor %}
+    </select>
+    <select name="sort" aria-label="Sort by" data-autosubmit>
+      {% for key, label in sorts.items() %}<option value="{{ key }}" {{ 'selected' if sort == key }}>{{ label }}</option>{% endfor %}
+    </select>
+    <label class="checkline"><input type="checkbox" name="show" value="all" {{ 'checked' if show == 'all' }} data-autosubmit> Include handed-over</label>
+  </div>
+</form>
+
+<div class="results-bar">
+  <span class="count" role="status">{{ total }} listing{{ '' if total == 1 else 's' }}{% if q %} for “{{ q }}”{% endif %}</span>
+  {% if q or kind or category or show == 'all' or sort != 'newest' %}
+  <div class="active-filters" aria-label="Active filters">
+    {% if q %}<a class="chip chip-remove" href="{{ url_for('index', **dict(qargs, q=None)) }}" aria-label="Remove search filter">“{{ q }}” {{ icon('x') }}</a>{% endif %}
+    {% if kind %}<a class="chip chip-remove" href="{{ url_for('index', **dict(qargs, type=None)) }}" aria-label="Remove {{ kind }} filter">{{ kind|capitalize }} only {{ icon('x') }}</a>{% endif %}
+    {% if category %}<a class="chip chip-remove" href="{{ url_for('index', **dict(qargs, category=None)) }}" aria-label="Remove category filter">{{ category }} {{ icon('x') }}</a>{% endif %}
+    {% if show == 'all' %}<a class="chip chip-remove" href="{{ url_for('index', **dict(qargs, show=None)) }}" aria-label="Hide handed-over items">Including handed-over {{ icon('x') }}</a>{% endif %}
+    <a class="chip" href="{{ url_for('index') }}">Clear all</a>
+  </div>
+  {% endif %}
+</div>
+
+{% if items %}
+<div class="grid" role="list" aria-label="Lost and found listings">
+  {% for item in items %}<div role="listitem" style="display:contents">{{ listing_card(item) }}</div>{% endfor %}
+</div>
+{% if pages > 1 %}
+<nav class="pager" aria-label="Pagination">
+  {% if page > 1 %}<a href="{{ url_for('index', page=page - 1, **qargs) }}" rel="prev" aria-label="Previous page">{{ icon('arrow-left') }}</a>{% endif %}
+  {% set shown = [1, pages] + range(page - 1, page + 2)|list %}
+  {% for n in range(1, pages + 1) if n in shown %}
+    {% if loop.previtem is defined and n - loop.previtem > 1 %}<span class="gap">…</span>{% endif %}
+    {% if n == page %}<span class="cur" aria-current="page">{{ n }}</span>{% else %}<a href="{{ url_for('index', page=n, **qargs) }}" aria-label="Page {{ n }}">{{ n }}</a>{% endif %}
+  {% endfor %}
+  {% if page < pages %}<a href="{{ url_for('index', page=page + 1, **qargs) }}" rel="next" aria-label="Next page">{{ icon('chevron-right') }}</a>{% endif %}
+  <span class="page-of">Page {{ page }} of {{ pages }}</span>
+</nav>
+{% endif %}
+{% else %}
+<div class="empty">
+  <div class="empty-icon">{{ icon('search') }}</div>
+  {% if q or kind or category %}
+    <h2>No listings match your search</h2>
+    <p>Try different words or remove a filter. If your item is not listed yet, report it so others can help.</p>
+    <div class="hero-actions"><a class="btn" href="{{ url_for('index') }}">Clear filters</a><a class="btn btn-lost" href="{{ url_for('post_item', type='lost') }}">Report a lost item</a><a class="btn btn-found" href="{{ url_for('post_item', type='found') }}">Report a found item</a></div>
+  {% else %}
+    <h2>No listings yet</h2>
+    <p>Nothing has been reported yet. Be the first to post, and help a fellow member get something back.</p>
+    <div class="hero-actions"><a class="btn btn-lost" href="{{ url_for('post_item', type='lost') }}">Report a lost item</a><a class="btn btn-found" href="{{ url_for('post_item', type='found') }}">Report a found item</a></div>
+  {% endif %}
+</div>
+{% endif %}
+{% endblock %}

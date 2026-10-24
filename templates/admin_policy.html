@@ -1,0 +1,24 @@
+{% extends "admin_base.html" %}
+{% from "_admin_macros.html" import page_head %}
+{% block title %}Verification policy - Admin{% endblock %}
+{% block admin %}
+{{ page_head('Verification policy', 'Each category has a risk level. The level decides who may verify a claim.') }}
+<section class="adm-card flush">
+  <form method="post" action="{{ url_for('admin_policy') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <div class="table-wrap"><table class="adm-table"><thead><tr><th data-primary>Category</th><th>Risk level</th></tr></thead><tbody>
+      {% for r in rows %}<tr><td>{{ r.category }}</td><td><select name="{{ r.field }}" aria-label="Risk level for {{ r.category }}">{% for k in risks %}<option value="{{ k }}" {{ 'selected' if r.risk == k }}>{{ k|risk_label }}</option>{% endfor %}</select></td></tr>{% endfor %}
+    </tbody></table></div>
+    <div class="adm-pager"><span class="muted small">Changes apply to new claims straight away.</span><button class="btn btn-primary" type="submit">Save policy</button></div>
+  </form>
+</section>
+<section class="adm-card">
+  <div class="adm-card-head"><h2>What each level means</h2></div>
+  <ul>
+    <li><strong>Low risk:</strong> the finder may verify the claimant from the private description.</li>
+    <li><strong>Medium risk:</strong> the finder may verify only if the claim has a photo or a detailed description (at least {{ limits.medium }} characters); otherwise it goes to staff.</li>
+    <li><strong>High risk:</strong> always verified by authorized staff and returned through the college office.</li>
+    <li>More than one claim on an item, or an item held by the college, always goes to staff.</li>
+  </ul>
+  <p class="muted small">New reports require staff approval: <strong>{{ 'on' if moderation else 'off' }}</strong> (environment variable MODERATION_REQUIRED). Limits: {{ limits.reports }} reports per hour and {{ limits.claims }} claims per day per member; finder claims unanswered for {{ limits.stale }} days appear in the staff queue.</p>
+</section>
+{% endblock %}

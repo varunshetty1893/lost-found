@@ -1,0 +1,22 @@
+{% extends "admin_base.html" %}
+{% from "_macros.html" import icon, role_badge, type_tag %}
+{% from "_admin_macros.html" import page_head, status_pill %}
+{% block title %}Search{% endblock %}
+{% block admin %}
+{% call page_head('Search results' if q else 'Search', ('For “' ~ q ~ '”') if q else 'Type a name, email, ID number or item in the box at the top.') %}{% endcall %}
+{% if q and not (people or items or roster) %}
+<section class="adm-card empty">{{ icon('search') }}<h2>Nothing found</h2><p class="muted">Try a shorter word, or part of an email or ID number.</p></section>
+{% endif %}
+{% if people %}
+<section class="adm-card"><div class="adm-card-head"><h2>People</h2><a class="adm-link" href="{{ url_for('admin_users', q=q) }}">See all</a></div>
+  <ul class="todo-list">{% for u in people %}<li><span><a class="strong" href="{{ url_for('admin_user_detail', user_id=u['id']) }}">{{ u['name'] }}</a> {{ role_badge(u['role']) }} <span class="muted small">{{ u['email'] }} · {{ u['id_number'] }}</span></span>{{ status_pill(u['status']) }}</li>{% endfor %}</ul></section>
+{% endif %}
+{% if items %}
+<section class="adm-card"><div class="adm-card-head"><h2>Items</h2><a class="adm-link" href="{{ url_for('admin_listings', q=q) }}">See all</a></div>
+  <ul class="todo-list">{% for i in items %}<li><span>{{ type_tag(i['type']) }} <a class="strong" href="{{ url_for('item_detail', item_id=i['id']) }}">{{ i['title'] }}</a> <span class="muted small">by {{ i['poster'] }} · {{ i['location'] }}</span></span>{{ status_pill(i['status']) }}</li>{% endfor %}</ul></section>
+{% endif %}
+{% if roster %}
+<section class="adm-card"><div class="adm-card-head"><h2>Campus list</h2><a class="adm-link" href="{{ url_for('admin_roster', q=q) }}">See all</a></div>
+  <ul class="todo-list">{% for r in roster %}<li><span><strong>{{ r['full_name'] }}</strong> {{ role_badge(r['role']) }} <span class="muted small">{{ r['id_number'] }} · {{ r['email'] }}</span></span></li>{% endfor %}</ul></section>
+{% endif %}
+{% endblock %}

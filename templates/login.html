@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% from "_macros.html" import icon, password_field %}
+{% block title %}Log in - {{ campus }} Lost &amp; Found{% endblock %}
+{% block content %}
+<div class="auth">
+  {% include "_auth_aside.html" %}
+  <div class="auth-main">
+    <p class="eyebrow">Verified campus members</p>
+    <h1>Log in</h1>
+    <p class="lede">Welcome back. Log in to browse listings and manage your reports.</p>
+    <form method="post" data-submit-once>
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <div class="field">
+        <label for="email">Email</label>
+        <input type="email" id="email" name="email" value="{{ form.get('email', '') }}" required maxlength="120" autofocus autocomplete="username" placeholder="you@campus.edu">
+      </div>
+      {{ password_field('password', 'password', 'Password', 'current-password') }}
+      <button class="btn btn-primary btn-block" type="submit" data-loading-text="Logging in…"><span data-label>Log in</span></button>
+    </form>
+    <p class="auth-foot">New here? <a href="{{ url_for('register') }}">Register with your campus ID</a></p>
+  </div>
+</div>
+{% endblock %}

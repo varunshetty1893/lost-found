@@ -1,0 +1,94 @@
+{% from "_macros.html" import icon %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0b3249">
+  <meta name="robots" content="noindex">
+  <title>{% block title %}Admin{% endblock %} · {{ campus }} Lost &amp; Found</title>
+  <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='img/favicon.svg') }}">
+  <link rel="icon" type="image/x-icon" sizes="any" href="{{ url_for('static', filename='img/favicon.ico') }}">
+  <link rel="apple-touch-icon" href="{{ url_for('static', filename='img/apple-touch-icon.png') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/admin.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/modern.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/polish.css') }}">
+  <script>document.documentElement.classList.add('js');</script>
+  <script src="{{ url_for('static', filename='js/app.js') }}" defer></script>
+</head>
+<body class="adm-body">
+  <a class="skip-link" href="#main-content">Skip to content</a>
+  {% set ep = request.endpoint or '' %}
+  <div class="adm-shell">
+    <div class="adm-overlay" data-adm-close></div>
+    <aside class="adm-side" id="adm-side" aria-label="Admin menu">
+      <button class="adm-side-close" type="button" data-adm-close aria-label="Close menu">{{ icon('x') }}</button>
+      <a class="adm-brand" href="{{ url_for('admin_home') }}">
+        <span class="brand-mark">{{ icon('shield') }}</span>
+        <span>{{ campus }}<small>Admin console</small></span>
+      </a>
+      <nav class="adm-nav" aria-label="Admin sections">
+        <p class="adm-group">Daily</p>
+        <a href="{{ url_for('admin_home') }}" {% if ep in ('admin_home', 'admin_search') %}aria-current="page"{% endif %}>{{ icon('home') }}<span>Home</span></a>
+        <a href="{{ url_for('admin_requests') }}" {% if ep == 'admin_requests' %}aria-current="page"{% endif %}>{{ icon('id-card') }}<span>Approvals</span>{% if nav_counts and nav_counts.requests %}<b class="adm-count">{{ nav_counts.requests }}</b>{% endif %}</a>
+        <a href="{{ url_for('staff_queue', name='pending_reports') }}" {% if ep in ('staff_queue',) %}aria-current="page"{% endif %}>{{ icon('inbox') }}<span>Staff desk</span>{% if nav_counts and nav_counts.handovers %}<b class="adm-count">{{ nav_counts.handovers }}</b>{% endif %}</a>
+        <p class="adm-group">Manage</p>
+        <a href="{{ url_for('admin_users') }}" {% if ep in ('admin_users', 'admin_user_detail') %}aria-current="page"{% endif %}>{{ icon('users') }}<span>People</span></a>
+        <a href="{{ url_for('admin_listings') }}" {% if ep == 'admin_listings' %}aria-current="page"{% endif %}>{{ icon('box') }}<span>Items</span></a>
+        <a href="{{ url_for('admin_policy') }}" {% if ep == 'admin_policy' %}aria-current="page"{% endif %}>{{ icon('shield') }}<span>Verification policy</span></a>
+        <a href="{{ url_for('admin_roster') }}" {% if ep == 'admin_roster' %}aria-current="page"{% endif %}>{{ icon('table') }}<span>Campus list</span></a>
+        <p class="adm-group">Records</p>
+        <a href="{{ url_for('admin_audit') }}" {% if ep == 'admin_audit' %}aria-current="page"{% endif %}>{{ icon('activity') }}<span>Activity log</span></a>
+      </nav>
+      <div class="adm-side-foot">
+        <a href="{{ url_for('index') }}">{{ icon('home') }}<span>Back to site</span></a>
+      </div>
+    </aside>
+    <div class="adm-col">
+    <header class="adm-top">
+      <button class="adm-menu-btn" type="button" data-adm-menu aria-controls="adm-side" aria-expanded="false" aria-label="Open menu">{{ icon('menu') }}</button>
+      <div class="adm-crumb"><a href="{{ url_for('admin_home') }}">Admin</a><span aria-hidden="true">/</span><strong>{% block crumb %}{{ self.title() }}{% endblock %}</strong></div>
+      <form class="adm-search" action="{{ url_for('admin_search') }}" method="get" role="search">
+        {{ icon('search') }}
+        <input type="search" name="q" value="{{ request.args.get('q', '') if ep == 'admin_search' else '' }}" placeholder="Find a person, item or ID number" aria-label="Search everything">
+        <button class="sr-only" type="submit">Search</button>
+      </form>
+      <div class="adm-top-actions">
+        <a class="adm-icon-btn" href="{{ url_for('admin_requests') }}" title="Approvals waiting" aria-label="Approvals waiting: {{ nav_counts.requests if nav_counts else 0 }}">{{ icon('bell') }}{% if nav_counts and nav_counts.requests %}<b class="adm-dot">{{ nav_counts.requests }}</b>{% endif %}</a>
+        <a class="btn btn-small adm-site-btn" href="{{ url_for('index') }}">{{ icon('external') }} <span>View site</span></a>
+        <details class="user-menu adm-user">
+          <summary aria-label="Account menu for {{ me['name'] }}"><span class="avatar" aria-hidden="true">{{ me['name'][:1] }}</span><span class="user-chip-name">{{ me['name'].split()[0] }}</span>{{ icon('chevron-down') }}</summary>
+          <div class="menu-panel">
+            <div class="menu-id"><strong>{{ me['name'] }}</strong><span>Administrator</span></div>
+            <a class="menu-item" href="{{ url_for('index') }}">{{ icon('home') }} Back to site</a>
+            <a class="menu-item" href="{{ url_for('dashboard') }}">{{ icon('user') }} My listings &amp; claims</a>
+            <form method="post" action="{{ url_for('logout') }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+              <button class="menu-item danger" type="submit">{{ icon('logout') }} Log out</button>
+            </form>
+          </div>
+        </details>
+      </div>
+    </header>
+    <main class="adm-main" id="main-content" tabindex="-1">
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+        <div class="flashes">
+          {% for category, message in messages %}
+          <div class="flash flash-{{ category }}" role="{{ 'alert' if category == 'error' else 'status' }}" data-flash>
+            {{ icon({'success': 'check-circle', 'error': 'alert'}.get(category, 'info')) }}
+            <span class="flash-text">{{ message }}</span>
+            <button type="button" class="flash-close" data-flash-close aria-label="Dismiss message">{{ icon('x') }}</button>
+          </div>
+          {% endfor %}
+        </div>
+        {% endif %}
+      {% endwith %}
+      {% block admin %}{% endblock %}
+    </main>
+    </div>
+  </div>
+  {% include "_admin_dialogs.html" %}
+</body>
+</html>

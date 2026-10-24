@@ -1,0 +1,13 @@
+id_number,full_name,email,role,department,end_date
+S2301,Aarav Shetty,aarav.shetty@campus.edu,student,Computer Science,2029-05-20
+S2302,Diya Nair,diya.nair@campus.edu,student,Electronics,2029-05-20
+S2303,Rohan Kulkarni,rohan.kulkarni@campus.edu,student,Mechanical,2029-05-20
+S2304,Meera Iyer,meera.iyer@campus.edu,student,Information Science,2029-05-20
+S2305,Karthik Rao,karthik.rao@campus.edu,student,Civil,2029-05-20
+S2306,Ananya Gowda,ananya.gowda@campus.edu,student,Business Administration,2029-05-20
+E1001,Dr. Suresh Bhat,suresh.bhat@campus.edu,staff,Computer Science,
+E1002,Prof. Lakshmi Menon,lakshmi.menon@campus.edu,staff,Electronics,
+E1003,Mr. Imran Khan,imran.khan@campus.edu,staff,Security Office,
+E1004,Ms. Priya Hegde,priya.hegde@campus.edu,staff,Library,
+E1005,Ms. Kavya Reddy,kavya.reddy@campus.edu,staff,Accounts & Finance,
+E1006,Mr. Anil Joshi,anil.joshi@campus.edu,staff,Administration Office,

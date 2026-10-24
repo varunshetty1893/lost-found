@@ -1,0 +1,73 @@
+{% extends "admin_base.html" %}
+{% from "_macros.html" import icon, role_badge, type_tag %}
+{% from "_admin_macros.html" import page_head, status_pill %}
+{% block title %}{{ u['name'] }}{% endblock %}
+{% block admin %}
+<a class="adm-back" href="{{ url_for('admin_users') }}">{{ icon('arrow-left') }} All members</a>
+{% call page_head(u['name'], u['email']) %}
+  {% if u['id_card'] %}<a class="btn btn-small" href="{{ url_for('admin_idcard', user_id=u['id']) }}" target="_blank" rel="noopener">{{ icon('id-card') }} ID card</a>{% endif %}
+  {% if u['status'] == 'active' %}
+  <button class="btn btn-danger btn-small" type="button" data-modal="dlg-action" data-action="{{ url_for('admin_user_action', user_id=u['id'], action='suspend') }}"
+    data-values='{{ {"title": "Suspend " ~ u["name"] ~ "?", "message": "They will be logged out immediately and cannot log in until you reactivate them.", "reason_label": "Reason (kept in the activity log)", "reason_hint": "Optional.", "confirm": "Suspend member", "danger": true, "next": url_for("admin_user_detail", user_id=u["id"])}|tojson }}'>Suspend</button>
+  {% elif u['status'] == 'suspended' %}
+  <form method="post" action="{{ url_for('admin_user_action', user_id=u['id'], action='reactivate') }}" class="inline">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="next" value="{{ url_for('admin_user_detail', user_id=u['id']) }}">
+    <button class="btn btn-found btn-small" type="submit">Reactivate</button></form>
+  {% endif %}
+  {% if u['role'] == 'student' %}
+  <button class="btn btn-small" type="button" data-modal="dlg-action" data-action="{{ url_for('admin_user_action', user_id=u['id'], action='set_end') }}"
+    data-values='{{ {"title": "Course end date for " ~ u["name"], "message": "The account is closed automatically after this day. Setting a later date also reopens an account that was closed because the course ended.", "date_label": "Course end date", "end_date": u["academic_end"] or "", "confirm": "Save date", "next": url_for("admin_user_detail", user_id=u["id"])}|tojson }}'>{{ icon('calendar') }} Course end date</button>
+  {% endif %}
+  <button class="btn btn-ghost-danger btn-small" type="button" data-modal="dlg-action" data-action="{{ url_for('admin_user_action', user_id=u['id'], action='remove') }}"
+    data-values='{{ {"title": "Remove " ~ u["name"] ~ " completely?", "message": "This permanently deletes the account, all their listings and claims, and removes them from the campus list. It cannot be undone. Use Suspend instead if they may come back.", "confirm_word": "REMOVE", "confirm": "Remove permanently", "danger": true}|tojson }}'>{{ icon('trash') }} Remove</button>
+{% endcall %}
+
+<div class="adm-cols narrow-left">
+  <section class="adm-card">
+    <div class="adm-card-head"><h2>Profile</h2>{{ status_pill(u['status']) }}</div>
+    <dl class="kv single">
+      <div><dt>Role</dt><dd>{{ role_badge(u['role']) }}{% if u['role'] == 'staff' and u['is_custody_officer'] %} <span class="pill pill-active">Custody officer</span>{% endif %}</dd></div>
+      {% if u['date_of_birth'] %}<div><dt>Date of birth</dt><dd>{{ u['date_of_birth'] }}</dd></div>{% endif %}
+      {% if u['role'] == 'staff' and u['status'] == 'active' %}<div><dt>Custody authority</dt><dd>
+        <form method="post" action="{{ url_for('admin_user_officer', user_id=u['id']) }}" class="inline"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="next" value="{{ url_for('admin_user_detail', user_id=u['id']) }}">
+        <input type="hidden" name="grant" value="{{ 0 if u['is_custody_officer'] else 1 }}"><button class="btn btn-small" type="submit">{{ 'Remove custody authority' if u['is_custody_officer'] else 'Authorize to confirm custody and review claims' }}</button></form></dd></div>{% endif %}
+      <div><dt>ID number</dt><dd>{{ u['id_number'] or '-' }}</dd></div>
+      <div><dt>Department</dt><dd>{{ u['department'] or '-' }}</dd></div>
+      {% if u['role'] == 'student' %}<div><dt>Course ends</dt><dd>{{ (u['academic_end']|pretty_date) if u['academic_end'] else 'Not set (no automatic end)' }}</dd></div>{% endif %}
+      <div><dt>Phone</dt><dd>{{ u['phone'] or '-' }}</dd></div>
+      <div><dt>Verified by</dt><dd>{{ 'Campus roster + email code' if u['verification'] == 'roster' else 'ID card review' }}</dd></div>
+      <div><dt>Joined</dt><dd>{{ u['created_at']|stamp }}</dd></div>
+      {% if u['review_note'] %}<div><dt>Admin note</dt><dd>{{ u['review_note'] }}</dd></div>{% endif %}
+    </dl>
+    <div class="mini-stats">
+      <div><strong>{{ items|length }}</strong><span>listings</span></div>
+      <div><strong>{{ returned }}</strong><span>returned</span></div>
+      <div><strong>{{ claims|length }}</strong><span>claims made</span></div>
+    </div>
+  </section>
+
+  <div>
+    <section class="adm-card flush">
+      <div class="adm-card-head pad"><h2>Listings</h2></div>
+      <div class="table-wrap"><table class="adm-table">
+        <thead><tr><th>Item</th><th>Type</th><th>Posted</th><th>Status</th></tr></thead>
+        <tbody>{% for i in items %}<tr><td><a href="{{ url_for('item_detail', item_id=i['id']) }}">{{ i['title'] }}</a></td><td>{{ type_tag(i['type']) }}</td><td>{{ i['created_at']|stamp }}</td><td>{{ status_pill(i['status']) }}</td></tr>
+        {% else %}<tr><td colspan="4" class="muted empty-row">No listings.</td></tr>{% endfor %}</tbody>
+      </table></div>
+    </section>
+    <section class="adm-card flush">
+      <div class="adm-card-head pad"><h2>Claims made</h2></div>
+      <div class="table-wrap"><table class="adm-table">
+        <thead><tr><th>Item</th><th>When</th><th>Outcome</th></tr></thead>
+        <tbody>{% for c in claims %}<tr><td>{{ c['title'] }}</td><td>{{ c['created_at']|stamp }}</td><td><span class="pill pill-{{ 'active' if c['status'] == 'approved' else ('rejected' if c['status'] == 'rejected' else 'pending_approval') }}">{{ c['status']|capitalize }}</span></td></tr>
+        {% else %}<tr><td colspan="3" class="muted empty-row">No claims.</td></tr>{% endfor %}</tbody>
+      </table></div>
+    </section>
+    <section class="adm-card">
+      <div class="adm-card-head"><h2>Related audit entries</h2></div>
+      {% if history %}<ul class="feed">{% for r in history %}<li><div>{{ r['action']|replace('_', ' ')|capitalize }}: {{ r['detail'] }}</div><span class="muted small">{{ r['created_at']|stamp }}</span></li>{% endfor %}</ul>
+      {% else %}<p class="muted">Nothing logged for this member.</p>{% endif %}
+    </section>
+  </div>
+</div>
+{% endblock %}

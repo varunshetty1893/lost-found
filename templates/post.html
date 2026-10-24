@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+{% from "_macros.html" import icon, field_error %}
+{% set kind = form.get('type', 'lost') %}
+{% block title %}{{ 'Edit report' if editing else 'Report a ' ~ kind ~ ' item' }} - {{ campus }} Lost &amp; Found{% endblock %}
+{% block content %}
+<nav class="crumbs" aria-label="Breadcrumb"><a href="{{ url_for('index') }}">Browse</a>{{ icon('chevron-right') }}<span aria-current="page">{{ 'Edit report ' ~ editing['ref_code'] if editing else 'Report an item' }}</span></nav>
+<div class="page-head">
+  <p class="eyebrow">Help your campus find its way back</p>
+  <h1><span data-for="lost" {% if kind != 'lost' %}hidden{% endif %}>Report a lost item</span><span data-for="found" {% if kind != 'found' %}hidden{% endif %}>Report a found item</span></h1>
+  <p><span data-for="lost" {% if kind != 'lost' %}hidden{% endif %}>Tell us what you lost and where. If someone reports a matching found item, you will see it as a suggestion and can submit a claim.</span><span data-for="found" {% if kind != 'found' %}hidden{% endif %}>Thanks for helping. Describe what you found, and the real owner can send a claim with private proof.</span></p>
+</div>
+
+<div class="form-layout">
+  <form class="surface" method="post" enctype="multipart/form-data" data-report-form data-submit-once>
+    {% if editing %}<input type="hidden" name="type" value="{{ kind }}">{% endif %}
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    {% if not editing %}<fieldset class="field {{ 'has-error' if error_field == 'type' }}">
+      <legend class="field-label">What happened?</legend>
+      <div class="segmented">
+      <label class="is-lost"><input type="radio" name="type" value="lost" {{ 'checked' if kind == 'lost' }}>{{ icon('megaphone') }} I lost an item</label>
+      <label class="is-found"><input type="radio" name="type" value="found" {{ 'checked' if kind == 'found' }}>{{ icon('compass') }} I found an item</label>
+    </div>
+    </fieldset>
+    {{ field_error('type', error_field, 'Choose whether the item was lost or found.') }}{% endif %}
+
+    <div class="field {{ 'has-error' if error_field == 'title' }}">
+      <label for="f-title">Item name <span class="req" aria-hidden="true">*</span></label>
+      <input type="text" id="f-title" name="title" minlength="3" maxlength="80" placeholder="Black HP laptop bag" value="{{ form.get('title', '') }}" required {% if error_field == 'title' %}aria-invalid="true" aria-describedby="err-title"{% endif %}>
+      {{ field_error('title', error_field, 'Give the item a short title (at least 3 characters).') }}
+    </div>
+
+    <div class="form-grid">
+      <div class="field {{ 'has-error' if error_field == 'category' }}">
+        <label for="f-category">Category <span class="req" aria-hidden="true">*</span></label>
+        <select id="f-category" name="category" required {% if error_field == 'category' %}aria-invalid="true" aria-describedby="err-category"{% endif %}>
+          <option value="">Choose a category</option>
+          {% for c in categories %}<option value="{{ c }}" {{ 'selected' if form.get('category') == c }}>{{ c }}</option>{% endfor %}
+        </select>
+        {{ field_error('category', error_field, 'Choose a category.') }}
+      </div>
+      <div class="field {{ 'has-error' if error_field == 'event_date' }}">
+        <label for="f-date"><span data-for="lost" {% if kind != 'lost' %}hidden{% endif %}>Date lost</span><span data-for="found" {% if kind != 'found' %}hidden{% endif %}>Date found</span> <span class="req" aria-hidden="true">*</span></label>
+        <input type="date" id="f-date" name="event_date" max="{{ today }}" value="{{ form.get('event_date', today) }}" required {% if error_field == 'event_date' %}aria-invalid="true" aria-describedby="err-event_date"{% endif %}>
+        {{ field_error('event_date', error_field, 'Enter a valid date that is not in the future.') }}
+      </div>
+    </div>
+
+    <div class="field {{ 'has-error' if error_field == 'location' }}">
+      <label for="f-location"><span data-for="lost" {% if kind != 'lost' %}hidden{% endif %}>Where did you last see it?</span><span data-for="found" {% if kind != 'found' %}hidden{% endif %}>Where did you find it?</span> <span class="req" aria-hidden="true">*</span></label>
+      <input type="text" id="f-location" name="location" minlength="2" maxlength="80" placeholder="Library, second floor" value="{{ form.get('location', '') }}" required {% if error_field == 'location' %}aria-invalid="true" aria-describedby="err-location"{% endif %}>
+      {{ field_error('location', error_field, 'Enter where it was lost or found.') }}
+    </div>
+
+    <fieldset class="field {{ 'has-error' if error_field == 'handover' }}" data-custody {% if kind != 'found' %}hidden{% endif %}>
+      <legend class="field-label">How will you hand the item over?</legend>
+      <div class="handover-opts">
+        <label><input type="radio" name="handover" value="direct" {{ 'checked' if form.get('handover', 'direct') != 'admin' }}> <strong>Return it directly to the owner</strong>
+          <span class="small">You keep the item. A claimant describes it privately, you compare it with what you know, and you arrange a safe meeting on campus. You never have to visit the office. Phones, wallets, ID cards and other high-risk items are always verified by college staff.</span></label>
+        <label><input type="radio" name="handover" value="admin" {{ 'checked' if form.get('handover') == 'admin' }}> <strong>Hand it to the college office</strong>
+          <span class="small">You take the item to the college office and show your report reference. Staff confirm receipt, verify the owner and return it. The item counts as “with the college” only after staff confirm they have it.</span></label>
+      </div>
+      {{ field_error('handover', error_field, 'Choose how you want to hand over the found item.') }}
+      {% if not editing %}<label class="checkline" style="margin-top:.6rem"><input type="checkbox" name="unsafe" value="1" {{ 'checked' if form.get('unsafe') == '1' }}> This item may be unsafe (for example a weapon, drugs or a damaged battery). Do not carry it around; it goes to college security.</label>{% endif %}
+    </fieldset>
+
+    <div class="field {{ 'has-error' if error_field == 'description' }}">
+      <div class="field-row"><label for="f-desc">Description <span class="req" aria-hidden="true">*</span></label><span class="counter" data-counter="f-desc"></span></div>
+      <textarea id="f-desc" name="description" rows="5" minlength="10" maxlength="1000" placeholder="Colour, brand, marks, what was inside." required aria-describedby="desc-hint{% if error_field == 'description' %} err-description{% endif %}" {% if error_field == 'description' %}aria-invalid="true"{% endif %}>{{ form.get('description', '') }}</textarea>
+      <span class="field-hint" id="desc-hint">At least 10 characters. Keep one detail back so only the real owner can prove it.</span>
+      {{ field_error('description', error_field, 'Describe the item in at least 10 characters.') }}
+    </div>
+
+    <div class="field {{ 'has-error' if error_field == 'private_details' }}">
+      <label for="f-private">Private identifying details <span class="opt">(optional, never shown publicly)</span></label>
+      <textarea id="f-private" name="private_details" rows="3" maxlength="500" placeholder="What is inside, a serial number, a scratch or sticker only the owner would know.">{{ form.get('private_details', '') }}</textarea>
+      <span class="field-hint">Only you and authorized staff can read this. It is used to check a claimant's private description, and is never shown in search results or to other students.</span>
+      {{ field_error('private_details', error_field, 'Keep the private details under 500 characters.') }}
+    </div>
+
+    {% if not editing %}<div class="field {{ 'has-error' if error_field == 'photo' }}">
+      <span class="field-label">Photo <span class="opt">(optional)</span></span>
+      <div class="dropzone" data-dropzone>
+        <input type="file" name="photo" accept="image/png,image/jpeg,image/gif,image/webp" aria-label="Choose a photo, optional" aria-describedby="photo-hint">
+        <div data-dz-empty>{{ icon('upload') }}<strong>Tap to add a photo</strong><span class="small">or drag and drop &middot; PNG, JPG, GIF or WEBP, up to 5 MB</span></div>
+        <div class="dropzone-preview" data-dz-preview hidden>
+          <img alt="Preview of the selected photo" src="">
+          <div class="meta"><strong data-dz-name></strong></div>
+          <button type="button" class="btn btn-small remove-file" data-dz-remove>{{ icon('x') }} Remove</button>
+        </div>
+      </div>
+      <span class="field-hint" id="photo-hint">A clear photo helps owners recognise their item. Avoid photos showing personal documents.</span>
+      <div class="field-error" data-dz-error hidden role="alert"></div>
+      {% if error_field == 'photo' %}<div class="field-error" role="alert">{{ icon('alert') }}<span>Please choose a valid image (PNG, JPG, GIF or WEBP, up to 5 MB).</span></div>{% endif %}
+    </div>{% endif %}
+
+    <div class="form-actions">
+      <button class="btn btn-primary" type="submit" data-loading-text="Saving…"><span data-label>{{ 'Save changes' if editing else 'Submit report' }}</span></button>
+      <a class="btn" href="{{ url_for('item_detail', item_id=editing['id']) if editing else url_for('index') }}">Cancel</a>
+    </div>
+  </form>
+
+  <aside class="surface tips" aria-labelledby="tips-title">
+    <h3 id="tips-title">{{ icon('sparkles') }} Tips for a good report</h3>
+    <ul>
+      <li>Use a clear name, such as “Blue Nike backpack”, instead of “bag”.</li>
+      <li>Add the exact place and date so matches are easy to spot.</li>
+      <li>Put the detail only the owner would know (a sticker, what is inside) in the private field, not in the public description.</li>
+      <li>Do not put phone numbers or addresses anywhere. Contact details are never shown on a report.</li>
+      <li>New reports are checked by staff before they appear publicly.</li>
+    </ul>
+  </aside>
+</div>
+{% endblock %}

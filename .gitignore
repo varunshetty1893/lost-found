@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.py[cod]
+venv/
+.venv/
+
+# Secrets and local settings (never commit these; .env.example is the template)
+.env
+.env.*
+!.env.example
+
+# Local database and everything users upload (ID cards, evidence and photos are private)
+*.db
+*.db-journal
+*.sqlite3
+private_uploads/*/*
+!private_uploads/*/.gitkeep
+
+# Editors, OS and tools
+.vscode/
+.idea/
+.snapshots/
+.DS_Store
+Thumbs.db
+*.log

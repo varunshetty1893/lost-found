@@ -1,0 +1,105 @@
+{% extends "admin_base.html" %}
+{% from "_macros.html" import icon, role_badge %}
+{% from "_admin_macros.html" import page_head, pager, status_pill %}
+{% block title %}Campus list{% endblock %}
+{% block admin %}
+<datalist id="dept-suggestions">{% for _g, opts, _a in department_groups() %}{% for v, _t in opts %}<option value="{{ v }}">{% endfor %}{% endfor %}</datalist>
+{% call page_head('Campus list', 'The college\'s official list of students and staff. Only people on it can register automatically (' ~ total_all ~ ' on file).') %}
+  <a class="btn btn-small" href="{{ url_for('admin_roster_template') }}">{{ icon('download') }} Template</a>
+  <a class="btn btn-small" href="{{ url_for('admin_roster_export', **filters) }}">{{ icon('download') }} Export CSV</a>
+  <button class="btn btn-small" type="button" data-open-dialog="dlg-roster-import">{{ icon('upload') }} Import CSV</button>
+  <button class="btn btn-primary btn-small" type="button" data-open-dialog="dlg-roster-add">{{ icon('plus') }} Add person</button>
+{% endcall %}
+
+<dialog class="modal modal-wide" id="dlg-roster-add" aria-labelledby="dlg-roster-add-title">
+  <form method="post" action="{{ url_for('admin_roster_add') }}" data-submit-once>
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <div class="modal-head">
+      <span class="modal-icon">{{ icon('user') }}</span>
+      <div class="modal-titles">
+        <h2 id="dlg-roster-add-title">Add a person</h2>
+        <p class="muted small">They will be able to register automatically with this ID and email.</p>
+      </div>
+      <button class="modal-x" type="button" data-dialog-close aria-label="Close">{{ icon('x') }}</button>
+    </div>
+    <div class="modal-body">
+      <div class="fgrid">
+        <div class="fld"><label for="ra-id">ID number</label><input id="ra-id" name="id_number" placeholder="e.g. S2307" required minlength="2" maxlength="20" pattern="[A-Za-z0-9][A-Za-z0-9_\-\/]{1,19}" title="2 to 20 letters or digits" autocomplete="off" autofocus></div>
+        <div class="fld"><label for="ra-name">Full name</label><input id="ra-name" name="full_name" placeholder="As on the college record" required minlength="2" maxlength="60" autocomplete="off"></div>
+        <div class="fld span2"><label for="ra-email">College email</label><input id="ra-email" name="email" type="email" placeholder="name@campus.edu" required maxlength="120" autocomplete="off"></div>
+        <div class="fld">
+          <label for="ra-role">Role</label>
+          <select id="ra-role" name="role"><option value="student">Student</option><option value="staff">Staff</option></select>
+        </div>
+        <div class="fld"><label for="ra-dept">Department <span class="opt">(optional)</span></label><input id="ra-dept" name="department" list="dept-suggestions" maxlength="80" placeholder="e.g. Computer Science" autocomplete="off"></div>
+        <div class="fld span2" data-end-field><label for="ra-end">Course end date <span class="req" aria-hidden="true"> *</span></label><input id="ra-end" name="academic_end" type="date" min="{{ today_iso() }}" data-end-input><span class="hint">Last day of the student's course, for example 20 May 2027. The account is closed automatically after it.</span></div>
+      </div>
+      <p class="hint-line">{{ icon('info') }} An ID that is already on the list will be updated instead of duplicated.</p>
+    </div>
+    <div class="modal-actions">
+      <button class="btn" type="button" data-dialog-close>Cancel</button>
+      <button class="btn btn-primary" type="submit" data-loading-text="Adding…">{{ icon('plus') }} <span data-label>Add person</span></button>
+    </div>
+  </form>
+</dialog>
+
+<dialog class="modal modal-wide" id="dlg-roster-import" aria-labelledby="dlg-roster-import-title">
+  <form method="post" action="{{ url_for('admin_roster_upload') }}" enctype="multipart/form-data" data-submit-once>
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <div class="modal-head">
+      <span class="modal-icon">{{ icon('upload') }}</span>
+      <div class="modal-titles">
+        <h2 id="dlg-roster-import-title">Import from CSV</h2>
+        <p class="muted small">Add many people at once. Existing IDs are updated and new ones are added.</p>
+      </div>
+      <button class="modal-x" type="button" data-dialog-close aria-label="Close">{{ icon('x') }}</button>
+    </div>
+    <div class="modal-body">
+      <p class="card-note">Columns: <code>id_number</code>, <code>full_name</code>, <code>email</code>, <code>role</code>, <code>department</code>, <code>end_date</code> (YYYY-MM-DD, students only, optional). <a href="{{ url_for('admin_roster_template') }}">Download the template</a></p>
+      <label class="filepick" data-filepick>
+        <input type="file" name="csv" accept=".csv,text/csv" required aria-label="Roster CSV file">
+        <span class="fp-icon">{{ icon('upload') }}</span>
+        <span class="fp-text"><b data-file-label>Choose a CSV file</b><small>Tap to browse your files</small></span>
+      </label>
+    </div>
+    <div class="modal-actions">
+      <button class="btn" type="button" data-dialog-close>Cancel</button>
+      <button class="btn btn-primary" type="submit" data-loading-text="Importing…">{{ icon('upload') }} <span data-label>Import list</span></button>
+    </div>
+  </form>
+</dialog>
+
+<form class="adm-filters" method="get" role="search">
+  {% if per_page != 10 %}<input type="hidden" name="per_page" value="{{ per_page }}">{% endif %}
+  <input type="search" name="q" value="{{ filters.q }}" placeholder="Search ID, name, email or department" aria-label="Search roster">
+  <select name="role" aria-label="Role"><option value="">All roles</option><option value="student" {{ 'selected' if filters.role == 'student' }}>Students</option><option value="staff" {{ 'selected' if filters.role == 'staff' }}>Staff</option></select>
+  <select name="reg" aria-label="Registration"><option value="">Any registration</option><option value="yes" {{ 'selected' if filters.reg == 'yes' }}>Has an account</option><option value="no" {{ 'selected' if filters.reg == 'no' }}>Not registered yet</option></select>
+  <button class="btn btn-primary" type="submit">Filter</button>
+  {% if filters.q or filters.role or filters.reg %}<a class="btn" href="{{ url_for('admin_roster') }}">Clear</a>{% endif %}
+</form>
+
+<section class="adm-card flush">
+  <div class="table-wrap"><table class="adm-table">
+    <thead><tr><th>ID</th><th data-primary>Name</th><th>Email</th><th>Role</th><th>Department</th><th>Course ends</th><th>Account</th><th><span class="sr-only">Actions</span></th></tr></thead>
+    <tbody>
+    {% for r in rows %}
+      <tr>
+        <td class="nowrap">{{ r['id_number'] }}</td><td class="nowrap strong">{{ r['full_name'] }}</td><td>{{ r['email'] }}</td>
+        <td>{{ role_badge(r['role']) }}</td><td>{{ r['department'] or '-' }}</td>
+        <td class="nowrap">{% if r['role'] == 'student' and r['academic_end'] %}{{ r['academic_end']|pretty_date }}{% else %}-{% endif %}</td>
+        <td class="nowrap">{% if r['user_status'] %}{{ status_pill(r['user_status']) }}{% else %}<span class="muted small">Not registered</span>{% endif %}</td>
+        <td class="row-actions">
+          <button class="btn btn-small" type="button" data-modal="dlg-roster-edit" data-action="{{ url_for('admin_roster_edit', roster_id=r['id']) }}"
+            data-values='{{ {"id_number": r["id_number"], "full_name": r["full_name"], "email": r["email"], "role": r["role"], "department": r["department"] or "", "academic_end": r["academic_end"] or "", "next": request.full_path.rstrip("?")}|tojson }}'>{{ icon('edit') }} Edit</button>
+          <button class="btn btn-small btn-ghost-danger" type="button" data-modal="dlg-action" data-action="{{ url_for('admin_roster_delete', roster_id=r['id']) }}"
+            data-values='{{ {"title": "Remove from campus list?", "message": r["full_name"] ~ " (" ~ r["id_number"] ~ ") will be removed from the campus list. Existing accounts are not affected.", "confirm": "Remove person", "danger": true, "next": request.full_path.rstrip("?")}|tojson }}'aria-label="Remove {{ r['full_name'] }}" title="Remove">{{ icon('trash') }}<span class="btn-lbl">Remove</span></button>
+        </td>
+      </tr>
+    {% else %}
+      <tr><td colspan="8" class="muted empty-row">No matching entries.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+  {{ pager('admin_roster', page, pages, pager_args, total, 'people', per_page, page_sizes) }}
+</section>
+{% endblock %}

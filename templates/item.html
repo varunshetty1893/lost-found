@@ -1,0 +1,234 @@
+{% extends "base.html" %}
+{% from "_macros.html" import icon, status_tag, custody_tag, claim_tag, type_tag, role_badge, photo_or_placeholder, category_icon %}
+{% macro csrf() %}<input type="hidden" name="csrf_token" value="{{ csrf_token }}">{% endmacro %}
+{% block title %}{{ item['title'] }} - {{ campus }} Lost &amp; Found{% endblock %}
+{% block content %}
+{% set found = item['type'] == 'found' %}
+<nav class="crumbs" aria-label="Breadcrumb">
+  <a href="{{ url_for('index') }}">Browse</a>{{ icon('chevron-right') }}
+  <a href="{{ url_for('index', type=item['type']) }}">{{ item['type']|capitalize }} items</a>{{ icon('chevron-right') }}
+  <span aria-current="page">{{ item['title'] }}</span>
+</nav>
+
+<article class="detail">
+  <div class="detail-photo">{{ photo_or_placeholder(item, big=True) }}</div>
+  <div class="detail-info">
+    <div class="tags">{{ type_tag(item['type']) }}{{ status_tag(item['status']) }}{% if item['status'] in ('active', 'returned') %}{{ custody_tag(item) }}{% endif %}</div>
+    <h1>{{ item['title'] }}</h1>
+    <p class="muted small">Reference <strong>{{ item['ref_code'] }}</strong></p>
+    <dl class="facts">
+      <div><dt><span class="fact-icon">{{ category_icon(item['category']) }}</span>Category</dt><dd>{{ item['category'] }}</dd></div>
+      <div><dt><span class="fact-icon">{{ icon('calendar') }}</span>{{ 'Date lost' if not found else 'Date found' }}</dt><dd>{{ item['event_date']|pretty_date }}</dd></div>
+      <div class="wide"><dt><span class="fact-icon">{{ icon('pin') }}</span>{{ 'Last seen' if not found else 'Found at' }}</dt><dd>{{ item['location'] }}</dd></div>
+      {% if found %}
+      <div class="wide"><dt><span class="fact-icon">{{ icon('box') }}</span>Report status</dt><dd>{{ item['status']|report_label }}</dd></div>
+      <div class="wide"><dt><span class="fact-icon">{{ icon('shield') }}</span>Custody status</dt><dd>{{ item['custody_status']|custody_label }}{% if item['custody_status'] == 'admin_handover_requested' %}<br><span class="muted small" style="font-weight:500">The finder chose to hand it to the college office. It is not in custody until staff confirm receipt.</span>{% endif %}</dd></div>
+      <div class="wide"><dt><span class="fact-icon">{{ icon('lock') }}</span>Verification</dt><dd>{{ item['risk_level']|risk_label }}{% if mode == 'admin' %}: verified and returned by college staff{% else %}: the finder verifies and returns it directly{% endif %}</dd></div>
+      {% endif %}
+      <div class="wide"><dt><span class="fact-icon">{{ icon('user') }}</span>Posted by</dt><dd>{{ item['owner_name'] }} {{ role_badge(item['owner_role']) }}{% if item['owner_dept'] %}<br><span class="muted small" style="font-weight:500">{{ item['owner_dept'] }}</span>{% endif %}</dd></div>
+    </dl>
+    <p class="about-label">Description</p>
+    <p class="description">{{ item['description'] }}</p>
+
+    {% if (owner or staff) and item['private_details'] %}
+    <div class="wf-card is-private"><h3>{{ icon('lock') }} Private details</h3><p class="wf-note">{{ item['private_details'] }}</p>
+      <p class="muted small">Only you and authorized staff can see this. It is never shown to other students.</p></div>
+    {% endif %}
+  </div>
+</article>
+
+<section class="detail-panels" aria-label="Report workflow">
+
+{# ---------------------------------------------------------------- report status messages #}
+{% if item['status'] == 'pending_review' %}
+  <div class="wf-card"><h3>{{ icon('clock') }} Waiting for staff review</h3>
+    <p>{% if owner %}This report is not public yet. You will get an alert when staff publish or reject it.{% else %}This report is not public yet.{% endif %}</p>
+    {% if staff %}
+    <div class="wf-actions">
+      <form method="post" action="{{ url_for('moderate_item', item_id=item['id'], decision='approve') }}">{{ csrf() }}<button class="btn btn-found" type="submit">{{ icon('check') }} Publish</button></form>
+      <button class="btn btn-danger" type="button" data-modal="dlg-action" data-action="{{ url_for('moderate_item', item_id=item['id'], decision='reject') }}"
+        data-values='{{ {"title": "Reject this report?", "message": "The reporter gets an alert with your reason. The report stays hidden from other members.", "confirm": "Reject report", "danger": true, "reason_label": "Reason for rejecting", "reason_hint": "Required. The reporter will see this.", "reason_required": true, "reason_min": 3}|tojson }}'>Reject</button>
+    </div>{% endif %}
+  </div>
+{% elif item['status'] == 'rejected' and (owner or staff) %}
+  <div class="wf-card is-alert"><h3>Report not approved</h3><p>{{ item['review_reason'] or 'No reason was recorded.' }}</p></div>
+{% elif item['status'] == 'closed' and (owner or staff) %}
+  <div class="wf-card"><h3>Report closed</h3><p>{{ item['closure_reason'] or 'No reason was recorded.' }}</p></div>
+{% elif item['status'] == 'returned' %}
+  <div class="wf-card"><h3>{{ icon('check-circle') }} Returned to its owner</h3><p>This item was handed back on {{ item['returned_at']|stamp }}.</p>
+  {% if admin %}<div class="wf-actions"><form method="post" action="{{ url_for('correct_return', item_id=item['id']) }}" onsubmit="return confirm('Reopen this report? This is logged.');">{{ csrf() }}<input type="text" name="reason" maxlength="500" placeholder="Reason for correcting this return (logged)" required><button class="btn btn-small btn-danger" type="submit">Correct this return</button></form></div>{% endif %}</div>
+{% endif %}
+
+{# ---------------------------------------------------------------- custody: finder guidance #}
+{% if found and owner and item['status'] == 'active' %}
+  {% if item['custody_status'] == 'admin_handover_requested' %}
+  <div class="wf-card"><h3>{{ icon('box') }} Next step: take the item to the college office</h3>
+    <p>Show the reference <strong>{{ item['ref_code'] }}</strong> to an authorized staff member. The item counts as being in college custody only after staff confirm they received it, so please keep it safe until then.</p>
+    {% if not item['unsafe'] and not approved %}<div class="wf-actions"><form method="post" action="{{ url_for('item_pref', item_id=item['id']) }}">{{ csrf() }}<input type="hidden" name="handover" value="direct"><button class="btn btn-small" type="submit">I would rather return it directly</button></form></div>{% endif %}
+    {% if item['unsafe'] %}<p class="small"><strong>Flagged as possibly unsafe.</strong> Do not handle it further; staff will refer it to campus security.</p>{% endif %}</div>
+  {% elif item['custody_status'] == 'with_finder' %}
+  <div class="wf-card"><h3>{{ icon('shield') }} You are keeping this item safe</h3>
+    <p>When someone claims it, you will compare their private description with the details only you know. If you are unsure, send the claim to staff. You never have to visit the office{% if item['risk_level'] == 'high' %}, but this is a high-risk item, so staff must verify the owner and the item goes through the college office{% endif %}.</p>
+    {% if not approved %}<div class="wf-actions"><form method="post" action="{{ url_for('item_pref', item_id=item['id']) }}">{{ csrf() }}<input type="hidden" name="handover" value="admin"><button class="btn btn-small" type="submit">I want to hand it to the college office instead</button></form></div>{% endif %}</div>
+  {% elif item['custody_status'] == 'with_admin' %}
+  <div class="wf-card"><h3>{{ icon('shield') }} The college office holds this item</h3><p>Thank you. Staff will verify the owner and return it.</p></div>
+  {% endif %}
+{% endif %}
+
+{# ---------------------------------------------------------------- custody: staff receipt #}
+{% if found and staff and item['status'] == 'active' and item['custody_status'] in ('with_finder', 'admin_handover_requested', 'direct_handover_pending') %}
+  <div class="wf-card is-private"><h3>{{ icon('inbox') }} Staff: confirm physical receipt</h3>
+    <p>Only record this when the item is physically in your hands. This is the step that puts the item in college custody and it is logged with your name.</p>
+    <form method="post" action="{{ url_for('receive_item', item_id=item['id']) }}" class="wf-actions">{{ csrf() }}
+      <label class="checkline"><input type="checkbox" name="confirm" value="1" required> I have physically received this item</label>
+      <input type="date" name="received_on" max="{{ now_date }}" aria-label="Received on (only if earlier than today)" title="Received on (only if earlier than today)">
+      <input type="text" name="notes" maxlength="300" placeholder="Notes, e.g. shelf or bag number (optional)">
+      <button class="btn btn-primary" type="submit">Confirm receipt</button></form></div>
+{% endif %}
+
+{# ---------------------------------------------------------------- claimant: claim form / own claim #}
+{% if can_claim %}
+  <div class="wf-card" id="claim"><h3>{{ icon('handshake') }} Is this yours?</h3>
+    <p>Describe something only the owner would know (contents, marks, serial number, what is on it). Do not share passwords, OTPs or ID numbers. A matching public photo is not proof by itself, and your college ID shows who you are, not that this is yours.</p>
+    <p class="small">{% if item['risk_level'] == 'high' or item['custody_status'] == 'with_admin' %}College staff will review this claim because of the item type.{% else %}The finder reviews your answer and can ask questions or send it to college staff.{% endif %}</p>
+    <form method="post" action="{{ url_for('submit_claim', item_id=item['id']) }}" enctype="multipart/form-data" data-submit-once>{{ csrf() }}
+      <div class="field"><label for="claim-msg">Your private description</label>
+        <textarea id="claim-msg" name="message" rows="4" minlength="15" maxlength="2000" required placeholder="Describe distinctive details, what was inside, when and where you lost it."></textarea></div>
+      <div class="field"><label for="claim-ev">Supporting photo <span class="opt">(optional, up to 3; for example a photo of you with the item or its receipt)</span></label>
+        <input id="claim-ev" type="file" name="evidence" accept="image/png,image/jpeg,image/gif,image/webp" multiple></div>
+      <button class="btn btn-primary" type="submit" data-loading-text="Sending…"><span data-label>Submit claim</span></button>
+    </form></div>
+{% endif %}
+
+{% if my_claim %}
+  <div class="wf-card is-private" id="my-claim"><h3>Your claim {{ claim_tag(my_claim['status']) }}</h3>
+    {% if my_claim['status'] == 'pending' %}<p>Waiting for the finder to review your description.</p>
+    {% elif my_claim['status'] == 'under_admin_review' %}<p>College staff are reviewing your claim.{% if my_claim['escalation_reason'] %} Reason: {{ my_claim['escalation_reason'] }}{% endif %}</p>
+    {% elif my_claim['status'] == 'needs_more_info' %}
+      <p><strong>More information was requested:</strong></p><p class="wf-note">{{ my_claim['info_request'] }}</p>
+      <form method="post" action="{{ url_for('claim_respond', claim_id=my_claim['id']) }}" enctype="multipart/form-data" data-submit-once>{{ csrf() }}
+        <div class="field"><label for="resp">Your answer</label><textarea id="resp" name="message" rows="3" maxlength="2000" required></textarea></div>
+        <div class="field"><label for="resp-ev">Another photo <span class="opt">(optional)</span></label><input id="resp-ev" type="file" name="evidence" accept="image/png,image/jpeg,image/gif,image/webp" multiple></div>
+        <button class="btn btn-primary" type="submit">Send answer</button></form>
+    {% elif my_claim['status'] == 'approved' %}<p>{% if item['status'] == 'returned' %}The item was handed over to you.{% else %}Your claim is approved. See the handover steps below.{% endif %}</p>
+    {% elif my_claim['status'] == 'rejected' %}<p>This claim was not approved.</p><p class="wf-note">{{ my_claim['review_reason'] or 'No reason was recorded.' }}</p>
+      {% if my_claim['handler'] == 'finder' and not my_claim['appeal_used'] and item['status'] == 'active' and not item['approved_claim_id'] %}
+      <form method="post" action="{{ url_for('claim_appeal', claim_id=my_claim['id']) }}" class="wf-actions">{{ csrf() }}<input type="text" name="message" minlength="10" maxlength="500" placeholder="Why should staff look again? (one appeal)" required><button class="btn btn-small" type="submit">Ask staff to reconsider</button></form>{% endif %}
+    {% elif my_claim['status'] == 'withdrawn' %}<p>You withdrew this claim.</p>{% endif %}
+    {% if my_evidence %}<p class="small">Your photos: {% for e in my_evidence %}<a href="{{ url_for('evidence_file', evidence_id=e['id']) }}" target="_blank" rel="noopener">photo {{ loop.index }}</a>{% if not loop.last %}, {% endif %}{% endfor %}</p>{% endif %}
+    {% if my_claim['status'] in ('pending', 'needs_more_info', 'under_admin_review', 'approved') and item['status'] != 'returned' %}
+    <form method="post" action="{{ url_for('claim_withdraw', claim_id=my_claim['id']) }}" class="wf-actions" onsubmit="return confirm('Withdraw this claim?');">{{ csrf() }}<button class="btn btn-small" type="submit">Withdraw my claim</button></form>{% endif %}
+  </div>
+{% endif %}
+
+{# ---------------------------------------------------------------- approved: handover #}
+{% if approved and item['status'] == 'active' and (participant or staff) %}
+  <div class="wf-card" id="handover"><h3>{{ icon('handshake') }} Handover</h3>
+  {% if item['custody_status'] == 'disputed' %}
+    <p><strong>This handover is disputed.</strong> College staff are reviewing it. The item cannot be released until the dispute is resolved.</p>
+    {% if staff and not (claimant_is_me or owner) %}
+    <form method="post" action="{{ url_for('resolve_dispute', item_id=item['id']) }}" class="wf-actions">{{ csrf() }}
+      <select name="resolution" aria-label="Resolution"><option value="complete">Handover did happen: record the return</option><option value="reopen">Handover did not happen: reopen the item</option></select>
+      <input type="text" name="reason" maxlength="500" minlength="5" placeholder="Reason (required)" required><button class="btn btn-primary" type="submit">Resolve dispute</button></form>{% endif %}
+  {% elif mode == 'direct' and participant %}
+    <p>Ownership was verified. Arrange the exchange in a public, well-lit campus place such as the library entrance or the main gate, in daytime. Never share passwords or OTPs. If something feels wrong, stop and ask staff.</p>
+    {% if counterpart %}<p><strong>{{ 'Claimant' if owner else 'Finder' }}:</strong> {{ counterpart['name'] }}, {{ counterpart['email'] }}</p>{% endif %}
+    {% if item['meeting_note'] %}<p class="wf-note">Suggested meeting: {{ item['meeting_note'] }}</p>{% endif %}
+    <form method="post" action="{{ url_for('arrange_meeting', item_id=item['id']) }}" class="wf-actions">{{ csrf() }}<input type="text" name="meeting" minlength="5" maxlength="200" placeholder="Suggest a place and time, e.g. Library entrance, 4 pm" required><button class="btn btn-small" type="submit">Send suggestion</button></form>
+    {% if stage == 'HANDOVER_CONFIRMATION_PENDING' %}<p class="small"><strong>Handover confirmation pending:</strong> one of you has confirmed. The item is marked returned only when both confirm.</p>{% endif %}
+    {% if my_confirmation %}<p class="small">You {{ 'confirmed' if my_confirmation['outcome'] == 'confirmed' else 'reported a problem with' }} this handover on {{ my_confirmation['created_at']|stamp }}. Waiting for the other person.</p>
+    {% else %}
+    <div class="wf-actions">
+      <form method="post" action="{{ url_for('confirm_handover', item_id=item['id']) }}" onsubmit="return confirm('Confirm that the item was handed over?');">{{ csrf() }}<input type="hidden" name="outcome" value="confirmed"><button class="btn btn-found" type="submit">{{ icon('check') }} The item was handed over</button></form>
+      <form method="post" action="{{ url_for('confirm_handover', item_id=item['id']) }}">{{ csrf() }}<input type="hidden" name="outcome" value="disputed"><input type="text" name="note" minlength="5" maxlength="300" placeholder="What went wrong?" required><button class="btn btn-small btn-danger" type="submit">Report a problem</button></form>
+    </div>{% endif %}
+  {% else %}
+    <p>{% if claimant_is_me %}Your claim is approved. College staff return this item: bring your college ID to the college office{% if item['custody_status'] != 'with_admin' %} once staff confirm they hold it; you will get an alert{% endif %}.{% elif owner %}The owner was verified. {% if item['custody_status'] != 'with_admin' %}Please take the item to the college office and show reference <strong>{{ item['ref_code'] }}</strong>.{% else %}Staff hold the item and will return it.{% endif %}{% else %}A claim is approved and waiting for the handover.{% endif %}</p>
+  {% endif %}
+  {% if staff and not (claimant_is_me) and item['custody_status'] != 'disputed' %}
+    {% if item['custody_status'] == 'with_admin' %}
+    <form method="post" action="{{ url_for('release_item', item_id=item['id']) }}" class="wf-actions">{{ csrf() }}
+      <label class="checkline"><input type="checkbox" name="acknowledged" value="1" required> I checked the claimant's college ID and they acknowledged receiving the item</label>
+      <input type="text" name="notes" maxlength="300" placeholder="Notes (optional)"><button class="btn btn-primary" type="submit">Record handover</button></form>
+    {% else %}<p class="small">The item cannot be released until staff confirm they physically hold it (use “Confirm receipt” above).</p>{% endif %}
+    <form method="post" action="{{ url_for('claim_revert', claim_id=approved['id']) }}" class="wf-actions" onsubmit="return confirm('Revert this approval?');">{{ csrf() }}<input type="text" name="reason" maxlength="500" placeholder="If the handover never happened: reason (logged)" required><button class="btn btn-small btn-danger" type="submit">Revert approval</button></form>
+  {% endif %}
+  </div>
+{% endif %}
+
+{# ---------------------------------------------------------------- claims list (finder or staff) #}
+{% if found and (owner or staff) and claims %}
+  <div class="wf-card" id="claims"><h3>{{ icon('inbox') }} Claims ({{ claims|length }})</h3>
+  {% for entry in claims %}{% set c = entry.c %}
+    <div class="wf-card {{ 'is-private' if entry.visible }}">
+      <p><strong>Claim {{ loop.index }}</strong> {{ claim_tag(c['status']) }}
+        {% if staff %}<span class="muted small"> by {{ c['claimer_name'] }} ({{ c['claimer_role'] }}{% if c['claimer_idno'] %}, ID {{ c['claimer_idno'] }}{% endif %}{% if c['claimer_dept'] %}, {{ c['claimer_dept'] }}{% endif %})</span>{% endif %}
+        <span class="muted small"> · sent {{ c['created_at']|stamp }}</span></p>
+      {% if c['handler'] == 'admin' %}<p class="small">Handled by college staff{% if c['escalation_reason'] %}: {{ c['escalation_reason'] }}{% endif %}</p>{% endif %}
+      {% if entry.visible %}
+        <p class="wf-note">{{ c['message'] }}</p>
+        {% if entry.evidence %}<p class="small">Photos: {% for e in entry.evidence %}<a href="{{ url_for('evidence_file', evidence_id=e['id']) }}" target="_blank" rel="noopener">photo {{ loop.index }}</a>{% if not loop.last %}, {% endif %}{% endfor %}</p>{% endif %}
+      {% elif owner %}<p class="small muted">Staff are reviewing this claim, so its details are no longer shown to you.</p>{% endif %}
+      {% if c['info_request'] and c['status'] == 'needs_more_info' %}<p class="small">Question sent: {{ c['info_request'] }}</p>{% endif %}
+      {% if c['review_reason'] and c['status'] in ('approved', 'rejected', 'withdrawn') %}<p class="small">Decision reason: {{ c['review_reason'] }}</p>{% endif %}
+
+      {% if owner and c['handler'] == 'finder' and c['status'] in ('pending', 'needs_more_info') and item['status'] == 'active' %}
+      <div class="wf-actions">
+        {% if c['status'] == 'pending' %}
+          {% if entry.can_verify %}
+          <form method="post" action="{{ url_for('finder_action', claim_id=c['id'], action='verify') }}" onsubmit="return confirm('Mark this evidence as convincing? Only do this if the description matches the item and what you know.');">{{ csrf() }}<input type="text" name="note" maxlength="500" placeholder="Why it is convincing (optional)"><button class="btn btn-found" type="submit">{{ icon('check') }} Evidence is convincing</button></form>
+          {% else %}<p class="small" style="flex-basis:100%">{{ entry.why_not }}</p>{% endif %}
+          <form method="post" action="{{ url_for('finder_action', claim_id=c['id'], action='request_info') }}">{{ csrf() }}<input type="text" name="note" minlength="5" maxlength="500" placeholder="Ask a question" required><button class="btn btn-small" type="submit">Ask for more information</button></form>
+        {% endif %}
+        <form method="post" action="{{ url_for('finder_action', claim_id=c['id'], action='escalate') }}">{{ csrf() }}<input type="text" name="note" minlength="3" maxlength="500" placeholder="Why staff should decide" required><button class="btn btn-small" type="submit">Not sure: send to staff</button></form>
+        <form method="post" action="{{ url_for('finder_action', claim_id=c['id'], action='reject') }}">{{ csrf() }}<input type="text" name="note" minlength="3" maxlength="500" placeholder="Reason (the claimant will see it)" required><button class="btn btn-small btn-danger" type="submit">Reject</button></form>
+      </div>
+      {% endif %}
+
+      {% if staff and c['status'] in ('pending', 'under_admin_review', 'needs_more_info') and item['status'] == 'active' and c['claimer_id'] != me['id'] %}
+      <div class="wf-actions">
+        {% if c['status'] != 'needs_more_info' %}
+        <form method="post" action="{{ url_for('staff_action', claim_id=c['id'], action='approve') }}" onsubmit="return confirm('Approve this claim? Competing claims will be closed.');">{{ csrf() }}<input type="text" name="reason" minlength="3" maxlength="500" placeholder="Decision reason (required)" required><button class="btn btn-found" type="submit">Approve</button></form>
+        <form method="post" action="{{ url_for('staff_action', claim_id=c['id'], action='request_info') }}">{{ csrf() }}<input type="text" name="reason" minlength="3" maxlength="500" placeholder="Question for the claimant" required><button class="btn btn-small" type="submit">Request information</button></form>
+        {% endif %}
+        <form method="post" action="{{ url_for('staff_action', claim_id=c['id'], action='reject') }}">{{ csrf() }}<input type="text" name="reason" minlength="3" maxlength="500" placeholder="Reason (the claimant will see it)" required><button class="btn btn-small btn-danger" type="submit">Reject</button></form>
+      </div>
+      {% endif %}
+    </div>
+  {% endfor %}</div>
+{% endif %}
+
+{# ---------------------------------------------------------------- matches (suggestions only) #}
+{% if (owner or staff) and matches %}
+  <div class="wf-card"><h3>{{ icon('sparkles') }} Possible matches</h3>
+    <p class="small muted">Suggestions based on public details only. A match does not prove ownership and nothing happens automatically.</p>
+    <ul class="activity">{% for m in matches %}
+      <li class="activity-row"><div class="activity-main"><a class="title" href="{{ url_for('item_detail', item_id=m.item['id']) }}">{{ m.item['title'] }}</a>
+        <div class="sub"><span>{{ m.item['location'] }}</span><span>{{ m.item['event_date']|pretty_date }}</span><span>Score {{ m.score }}</span></div>
+        <div class="match-why">{% for r in m.reasons %}<span class="chip">{{ r }}</span>{% endfor %}</div></div>
+        <div class="activity-side">{{ type_tag(m.item['type']) }}</div></li>{% endfor %}</ul></div>
+{% endif %}
+
+{# ---------------------------------------------------------------- owner/staff management #}
+{% if (owner or staff) and item['status'] in ('pending_review', 'active') %}
+  <div class="wf-card"><h3>Manage this report</h3>
+    <div class="wf-actions">
+      {% if owner and not has_claims %}<a class="btn btn-small" href="{{ url_for('edit_item', item_id=item['id']) }}">{{ icon('edit') }} Edit</a>{% endif %}
+      <button class="btn btn-small btn-danger" type="button" data-modal="dlg-action" data-action="{{ url_for('close_item', item_id=item['id']) }}"
+        data-values='{{ {"title": "Close this report?", "message": "Open claims on it will end. Use this when the item is sorted out or the post is a duplicate.", "confirm": "Close report", "danger": true, "reason_label": "Reason", "reason_hint": "e.g. found it myself, duplicate", "reason_required": true, "reason_min": 3}|tojson }}'>Close report</button>
+      {% if admin %}<button class="btn btn-small btn-danger" type="button" data-modal="dlg-action" data-action="{{ url_for('admin_listing_delete', item_id=item['id']) }}"
+        data-values='{{ {"title": "Remove this report permanently?", "message": "The report and all its claims are deleted. This cannot be undone and is logged.", "confirm": "Remove permanently", "danger": true, "reason_label": "Reason (optional)", "reason_hint": "Saved in the activity log.", "next": url_for("admin_listings")}|tojson }}'>{{ icon('trash') }} Remove permanently</button>{% endif %}
+    </div></div>
+{% endif %}
+
+{# ---------------------------------------------------------------- history #}
+{% if (owner or staff) and (events or confirmations) %}
+  <div class="wf-card"><h3>Custody and handover history</h3>
+    <ul class="events">
+      {% for e in events %}<li>{{ e['created_at']|stamp }}: {{ {'ADMIN_RECEIPT': 'College staff confirmed receipt', 'ADMIN_RELEASE': 'Released to the verified claimant by staff', 'DIRECT_RETURN': 'Returned directly; both parties confirmed', 'DISPUTE_RESOLUTION': 'Return recorded after a dispute', 'CORRECTION': 'Administrator corrected the record'}[e['handover_type']] }}{% if e['staff_name'] %} ({{ e['staff_name'] }}){% endif %}{% if e['notes'] %}: {{ e['notes'] }}{% endif %}</li>{% endfor %}
+      {% for c in confirmations or [] %}<li>{{ c['created_at']|stamp }}: {{ c['name'] }} ({{ c['party'] }}) {{ 'confirmed' if c['outcome'] == 'confirmed' else 'reported a problem' }}</li>{% endfor %}
+    </ul></div>
+{% endif %}
+</section>
+{% if staff or owner %}{% include "_admin_dialogs.html" %}{% endif %}
+{% endblock %}

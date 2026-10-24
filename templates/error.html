@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% from "_macros.html" import icon %}
+{% block title %}Error {{ code }} - {{ campus }} Lost &amp; Found{% endblock %}
+{% block content %}
+<div class="empty">
+  <div class="empty-icon">{{ icon('alert') }}</div>
+  <h2>{{ code }}</h2>
+  <p>{{ message }}</p>
+  <div class="hero-actions"><a class="btn btn-primary" href="{{ url_for('index') }}">Back to home</a></div>
+</div>
+{% endblock %}

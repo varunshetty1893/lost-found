@@ -1,0 +1,46 @@
+{% extends "admin_base.html" %}
+{% from "_macros.html" import icon, type_tag %}
+{% from "_admin_macros.html" import page_head, pager, status_pill %}
+{% block title %}Items{% endblock %}
+{% block admin %}
+{% call page_head('Items', 'Every lost and found post. Remove anything that breaks the rules.') %}
+  <a class="btn btn-small" href="{{ url_for('admin_listings_export', **filters) }}">{{ icon('download') }} Export CSV</a>
+{% endcall %}
+{% set flag_text = {'stale': 'Showing published items older than 30 days', 'slow': 'Showing items with a claim nobody has answered for 3+ days', 'locked': 'Showing disputed handovers'} %}
+{% if filters.flag %}<div class="adm-banner">{{ icon('filter') }}<span>{{ flag_text[filters.flag] }}</span><a href="{{ url_for('admin_listings') }}">Show all items</a></div>{% endif %}
+<form class="adm-filters" method="get" role="search">
+  {% if filters.flag %}<input type="hidden" name="flag" value="{{ filters.flag }}">{% endif %}
+  <input type="search" name="q" value="{{ filters.q }}" placeholder="Search title, description, place or poster" aria-label="Search listings">
+  <select name="type" aria-label="Type"><option value="">Lost &amp; found</option><option value="lost" {{ 'selected' if filters.type == 'lost' }}>Lost</option><option value="found" {{ 'selected' if filters.type == 'found' }}>Found</option></select>
+  <select name="status" aria-label="Status"><option value="">Any status</option><option value="pending_review" {{ 'selected' if filters.status == 'pending_review' }}>Awaiting review</option><option value="active" {{ 'selected' if filters.status == 'active' }}>Published</option><option value="returned" {{ 'selected' if filters.status == 'returned' }}>Returned</option><option value="closed" {{ 'selected' if filters.status == 'closed' }}>Closed</option><option value="rejected" {{ 'selected' if filters.status == 'rejected' }}>Not approved</option></select>
+  <select name="category" aria-label="Category"><option value="">All categories</option>{% for c in categories %}<option value="{{ c }}" {{ 'selected' if filters.category == c }}>{{ c }}</option>{% endfor %}</select>
+  <button class="btn btn-primary" type="submit">Filter</button>
+  {% if filters.q or filters.type or filters.status or filters.category %}<a class="btn" href="{{ url_for('admin_listings') }}">Clear</a>{% endif %}
+</form>
+<section class="adm-card flush">
+  <div class="table-wrap"><table class="adm-table">
+    <thead><tr><th data-primary>Listing</th><th>Type</th><th>Category</th><th>Posted by</th><th>Posted</th><th>Claims</th><th>Status</th><th><span class="sr-only">Actions</span></th></tr></thead>
+    <tbody>
+    {% for i in rows %}
+      <tr>
+        <td><div class="item-cell">
+          {% if i['photo'] %}<img src="{{ url_for('media', name=i['photo']) }}" alt="" loading="lazy">{% else %}<span class="thumb-ph">{{ icon('image') }}</span>{% endif %}
+          <span><a class="strong" href="{{ url_for('item_detail', item_id=i['id']) }}">{{ i['title'] }}</a> <span class="muted small">{{ i['ref_code'] }}</span><br><span class="muted small">{{ i['location'] }} · {{ i['event_date']|pretty_date }}</span></span>
+        </div></td>
+        <td>{{ type_tag(i['type']) }}</td><td>{{ i['category'] }}</td><td>{{ i['poster'] }}</td>
+        <td class="nowrap">{{ i['created_at']|stamp }}</td>
+        <td>{{ i['claim_count'] }}{% if i['pending_claims'] %} <span class="pill pill-pending_approval">{{ i['pending_claims'] }} pending</span>{% endif %}</td>
+        <td>{{ status_pill(i['status']) }}{% if i['type'] == 'found' and i['status'] == 'active' %}<br><span class="muted small">{{ i['custody_status']|custody_label }}</span>{% endif %}</td>
+        <td class="row-actions">
+          <button class="btn btn-small btn-danger" type="button" data-modal="dlg-action" data-action="{{ url_for('admin_listing_delete', item_id=i['id']) }}"
+            data-values='{{ {"title": "Delete this listing?", "message": "“" ~ i["title"] ~ "” (" ~ i["ref_code"] ~ ") will be removed and the poster will be notified.", "reason_label": "Reason (sent to the poster)", "reason_hint": "Optional. Keep it short and polite, for example: Not a real lost item.", "confirm": "Delete listing", "danger": true, "next": request.full_path.rstrip("?")}|tojson }}'>{{ icon('trash') }} Delete</button>
+        </td>
+      </tr>
+    {% else %}
+      <tr><td colspan="8" class="muted empty-row">No listings match these filters.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+  {{ pager('admin_listings', page, pages, filters, total, 'listings') }}
+</section>
+{% endblock %}

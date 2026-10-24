@@ -1,0 +1,48 @@
+{% extends "admin_base.html" %}
+{% from "_macros.html" import icon, role_badge %}
+{% from "_admin_macros.html" import page_head, pager, status_pill %}
+{% block title %}People{% endblock %}
+{% block admin %}
+{% call page_head('People', 'Everyone who has registered. Click a name to see what they have done.') %}
+  <a class="btn btn-small" href="{{ url_for('admin_users_export', **filters) }}">{{ icon('download') }} Export CSV</a>
+{% endcall %}
+<form class="adm-filters" method="get" role="search">
+  <input type="search" name="q" value="{{ filters.q }}" placeholder="Search name, email, ID or department" aria-label="Search members">
+  <select name="role" aria-label="Role"><option value="">All roles</option><option value="student" {{ 'selected' if filters.role == 'student' }}>Students</option><option value="staff" {{ 'selected' if filters.role == 'staff' }}>Staff</option></select>
+  <select name="status" aria-label="Status"><option value="">All statuses</option>
+    {% for s in statuses %}<option value="{{ s }}" {{ 'selected' if filters.status == s }}>{{ s|replace('_', ' ')|capitalize }}</option>{% endfor %}</select>
+  <button class="btn btn-primary" type="submit">Filter</button>
+  {% if filters.q or filters.role or filters.status %}<a class="btn" href="{{ url_for('admin_users') }}">Clear</a>{% endif %}
+</form>
+<section class="adm-card flush">
+  <div class="table-wrap"><table class="adm-table">
+    <thead><tr><th data-primary>Member</th><th>ID</th><th>Role</th><th>Department</th><th>Course ends</th><th>Listings</th><th>Verified by</th><th>Joined</th><th>Status</th><th><span class="sr-only">Actions</span></th></tr></thead>
+    <tbody>
+    {% for u in rows %}
+      <tr>
+        <td><a class="strong" href="{{ url_for('admin_user_detail', user_id=u['id']) }}">{{ u['name'] }}</a><br><span class="muted small">{{ u['email'] }}</span></td>
+        <td>{{ u['id_number'] }}</td><td>{{ role_badge(u['role']) }}</td><td>{{ u['department'] or '-' }}</td>
+        <td class="nowrap">{% if u['role'] == 'student' and u['academic_end'] %}{{ u['academic_end']|pretty_date }}{% else %}-{% endif %}</td>
+        <td>{{ u['item_count'] }}</td>
+        <td>{{ 'Roster + email code' if u['verification'] == 'roster' else 'ID card review' }}</td>
+        <td class="nowrap">{{ u['created_at'][:10]|pretty_date }}</td>
+        <td>{{ status_pill(u['status']) }}</td>
+        <td class="row-actions">
+          {% if u['status'] == 'active' %}
+          <button class="btn btn-small btn-danger" type="button" data-modal="dlg-action" data-action="{{ url_for('admin_user_action', user_id=u['id'], action='suspend') }}"
+            data-values='{{ {"title": "Suspend " ~ u["name"] ~ "?", "message": "They will be logged out immediately and cannot log in until you reactivate them.", "reason_label": "Reason (kept in the activity log)", "reason_hint": "Optional.", "confirm": "Suspend member", "danger": true, "next": request.full_path.rstrip("?")}|tojson }}'>Suspend</button>
+          {% elif u['status'] == 'suspended' %}
+          <form method="post" action="{{ url_for('admin_user_action', user_id=u['id'], action='reactivate') }}" class="inline">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="next" value="{{ request.full_path.rstrip('?') }}">
+            <button class="btn btn-small" type="submit">Reactivate</button></form>
+          {% elif u['status'] == 'pending_approval' %}<a class="btn btn-small" href="{{ url_for('admin_requests') }}">Review</a>{% endif %}
+        </td>
+      </tr>
+    {% else %}
+      <tr><td colspan="10" class="muted empty-row">No members match these filters.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+  {{ pager('admin_users', page, pages, filters, total, 'members') }}
+</section>
+{% endblock %}

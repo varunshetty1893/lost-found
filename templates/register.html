@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% from "_macros.html" import icon, password_field, department_field %}
+{% block title %}Register - {{ campus }} Lost &amp; Found{% endblock %}
+{% block content %}
+<div class="auth">
+  {% include "_auth_aside.html" %}
+  <div class="auth-main">
+    <p class="eyebrow">A safer way to reunite belongings</p>
+    <h1>Register with your campus ID</h1>
+    <p class="lede">Only students and staff in the college records can join. Your name is taken from those records. Everything below is required.</p>
+    <form method="post" data-submit-once>
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <fieldset class="field">
+      <legend class="field-label">I am a</legend>
+      <div class="segmented">
+        <label><input type="radio" name="role" value="student" required {{ 'checked' if form.get('role', 'student') == 'student' }}>Student</label>
+        <label><input type="radio" name="role" value="staff" {{ 'checked' if form.get('role') == 'staff' }}>Staff member</label>
+      </div>
+    </fieldset>
+      <div class="field">
+        <label for="id_number">Roll number or employee ID</label>
+        <input type="text" id="id_number" name="id_number" value="{{ form.get('id_number', '') }}" placeholder="S2301 or E1001" required minlength="2" maxlength="20" pattern="[A-Za-z0-9][A-Za-z0-9_\-\/]{1,19}" title="2 to 20 letters or digits" autofocus autocomplete="off">
+      </div>
+      <div class="field">
+        <label for="email">Email registered with the college</label>
+        <input type="email" id="email" name="email" value="{{ form.get('email', '') }}" required maxlength="120" autocomplete="email">
+        <span class="field-hint">We send a 6-digit verification code to this address.</span>
+      </div>
+      {{ department_field(form) }}
+      <div class="form-grid">
+        <div class="field">
+          <label for="phone">Phone number</label>
+          <input type="tel" id="phone" name="phone" value="{{ form.get('phone', '') }}" placeholder="98765 43210" required inputmode="tel" pattern="\+?[0-9][0-9 \-]{6,14}" maxlength="16" autocomplete="off" data-phone title="7 to 15 digits, for example 98765 43210">
+          <span class="field-hint">Shared only after a claim is approved.</span>
+        </div>
+        <div class="field">
+          <label for="dob">Date of birth</label>
+          <input type="date" id="dob" name="dob" value="{{ form.get('dob', '') }}" required min="1926-01-01" max="{{ today_iso() }}" autocomplete="bday">
+          <span class="field-hint">Used only to confirm who you are.</span>
+        </div>
+      </div>
+      {{ password_field('password', 'password', 'Create a password', 'new-password', minlength=8, rules=True) }}
+      {{ password_field('confirm_password', 'confirm_password', 'Confirm password', 'new-password', minlength=8, match='password') }}
+      <button class="btn btn-primary btn-block" type="submit" data-loading-text="Sending code…"><span data-label>Send verification code</span></button>
+    </form>
+    {% if show_manual %}
+    <div class="callout warn">{{ icon('info') }}<div><strong>Details not found?</strong><p>If you really belong to the campus but are missing from the records, <a href="{{ url_for('register_manual') }}">request manual verification with your ID card</a>.</p></div></div>
+    {% endif %}
+    <p class="auth-foot">Already registered? <a href="{{ url_for('login') }}">Log in</a></p>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,29 @@
+{% from "_macros.html" import icon, type_tag, claim_tag %}
+<div class="adm-head"><div><h1>Staff desk</h1><p class="muted">Receipts, claims and handovers that need a staff decision.</p></div></div>
+<nav class="q-tabs" aria-label="Queues">
+  {% for key, label, _b in queues %}<a href="{{ url_for('staff_queue', name=key) }}" {% if key == name %}aria-current="page"{% endif %}>{{ label }}<b>{{ counts[key] }}</b></a>{% endfor %}
+</nav>
+<section class="adm-card">
+  <div class="adm-card-head"><h2>{{ title }}</h2></div>
+  <p class="muted">{{ blurb }}</p>
+  {% if name == 'awaiting_receipt' %}
+  <form method="get" action="{{ url_for('staff_lookup') }}" class="wf-actions" style="margin-bottom:1rem"><input type="text" name="ref" placeholder="Report reference, e.g. LF-2026-00042" aria-label="Report reference" required><button class="btn btn-primary btn-small" type="submit">{{ icon('search') }} Find report</button></form>
+  {% endif %}
+  {% if rows %}
+  <div class="table-wrap"><table class="adm-table">
+    <thead><tr><th>Reference</th><th data-primary>Item</th><th>Risk</th><th>Reported by</th><th>State</th><th>Waiting since</th><th><span class="sr-only">Open</span></th></tr></thead>
+    <tbody>{% for r in rows %}
+      <tr>
+        <td>{{ r['ref_code'] }}</td>
+        <td>{{ type_tag(r['type']) }} <a class="strong" href="{{ url_for('item_detail', item_id=r['id']) }}">{{ r['title'] }}</a>{% if r['unsafe'] %} <span class="tag tag-rejected">Refer to security</span>{% endif %}</td>
+        <td>{{ r['risk_level']|risk_label }}</td>
+        <td>{{ r['reporter'] }}</td>
+        <td>{% if r['claim_status'] %}{{ claim_tag(r['claim_status']) }}{% if r['escalation_reason'] %}<br><span class="muted small">{{ r['escalation_reason'] }}</span>{% endif %}
+            {% elif r['status'] == 'pending_review' %}Awaiting review
+            {% else %}{{ r['custody_status']|custody_label if r['type'] == 'found' else r['status']|report_label }}{% endif %}</td>
+        <td>{% set since = r['returned_at'] if name == 'completed' else r['created_at'] %}{{ since|stamp }}{% if name == 'awaiting_receipt' and r['created_at'] < stale %} <span class="tag tag-pending">Overdue</span>{% endif %}</td>
+        <td class="row-actions"><a class="btn btn-small" href="{{ url_for('item_detail', item_id=r['id']) }}">Open</a></td>
+      </tr>{% endfor %}
+    </tbody></table></div>
+  {% else %}<div class="empty" style="border:0"><div class="empty-icon">{{ icon('check-circle') }}</div><h3>Nothing here</h3><p>This queue is empty.</p></div>{% endif %}
+</section>

@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% from "_macros.html" import icon %}
+{% block content %}
+<section class="lp-hero">
+  <div>
+    <p class="eyebrow">A campus community service</p>
+    <h1>Lost something on campus? Get it back.</h1>
+    <p class="lede">A private portal for {{ campus }} students and staff. Report what you lost, list what you found, and hand items over safely. Every member is verified against the college records.</p>
+    <div class="hero-actions">
+      <a class="btn btn-primary" href="{{ url_for('register') }}">{{ icon('id-card') }} Register with your campus ID</a>
+      <a class="btn" href="{{ url_for('login') }}">Log in</a>
+    </div>
+  </div>
+  <div class="lp-card">
+    <h2>Campus recovery at a glance</h2>
+    <div class="stats">
+      <div class="stat"><strong>{{ stats['lost'] }}</strong><span><i class="dot dot-lost"></i>still lost</span></div>
+      <div class="stat"><strong>{{ stats['found'] }}</strong><span><i class="dot dot-found"></i>waiting for owners</span></div>
+      <div class="stat"><strong>{{ stats['returned'] }}</strong><span><i class="dot dot-ret"></i>returned</span></div>
+    </div>
+    <div class="lp-lock">{{ icon('lock') }}<div><strong>Members only</strong>Listings, photos and contact details are visible only after you log in.</div></div>
+  </div>
+</section>
+
+<section class="lp-section" aria-labelledby="how-title">
+  <div class="head"><p class="eyebrow">How it works</p><h2 id="how-title">From “I lost it” to “I got it back”</h2></div>
+  <ol class="steps">
+    <li class="step"><span class="step-no">1</span><h3>Report or search</h3><p>Describe the item with a photo, or search the listings first. Found items can be kept safe with you or handed to the Security Office.</p></li>
+    <li class="step"><span class="step-no">2</span><h3>Claim with proof</h3><p>Owners send details only they would know. The poster reviews every claim, and contact details stay hidden until one is approved.</p></li>
+    <li class="step"><span class="step-no">3</span><h3>Hand over safely</h3><p>Ownership is verified first. The item is then returned in person, and the return is recorded only after the handover is confirmed.</p></li>
+  </ol>
+</section>
+
+<section class="lp-section" aria-labelledby="trust-title">
+  <div class="head"><p class="eyebrow">Verified access, by design</p><h2 id="trust-title">Everyone you deal with is a real member of campus</h2></div>
+  <ul class="features">
+    <li class="feature"><span class="feature-icon">{{ icon('id-card') }}</span><h3>Matched to college records</h3><p>Enter your roll number or employee ID and the email the college has on file for you.</p></li>
+    <li class="feature"><span class="feature-icon gold">{{ icon('mail') }}</span><h3>Confirmed by email code</h3><p>A 6-digit code goes to that email. Only the real owner of the inbox can finish registering.</p></li>
+    <li class="feature"><span class="feature-icon lost">{{ icon('shield') }}</span><h3>Reviewed when needed</h3><p>Not in the records yet, such as a new joiner? <a href="{{ url_for('register_manual') }}">Request manual verification</a> with your ID card. An admin reviews every request.</p></li>
+  </ul>
+</section>
+
+<section class="cta-band">
+  <div><h2>Ready to find your way back?</h2><p>Join with your campus ID to browse listings and report items.</p></div>
+  <a class="btn btn-light" href="{{ url_for('register') }}">Get started</a>
+</section>
+{% endblock %}

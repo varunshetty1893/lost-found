@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+{% from "_macros.html" import custody_tag, claim_tag, status_tag, icon, role_badge, type_tag, photo_or_placeholder %}
+{% block title %}Dashboard - {{ campus }} Lost &amp; Found{% endblock %}
+{% block content %}
+{% set open_n = my_items|selectattr('status', 'equalto', 'active')|list|length %}
+{% set pending_n = my_items|sum(attribute='pending_claims') %}
+{% set returned_n = my_items|selectattr('status', 'equalto', 'returned')|list|length %}
+<div class="profile">
+  <span class="avatar lg" aria-hidden="true">{{ me['name'][:1] }}</span>
+  <div>
+    <p class="eyebrow" style="margin:0">Dashboard · my activity</p>
+    <h1>{{ me['name'] }}</h1>
+    <span class="muted">{{ role_badge(me['role']) }} {{ me['department'] }}{% if me['id_number'] %} &middot; ID {{ me['id_number'] }}{% endif %}</span>
+  </div>
+  <div class="profile-actions">
+    <a class="btn btn-lost btn-small" href="{{ url_for('post_item', type='lost') }}">{{ icon('plus') }} Report lost</a>
+    <a class="btn btn-found btn-small" href="{{ url_for('post_item', type='found') }}">{{ icon('plus') }} Report found</a>
+  </div>
+</div>
+
+<div class="kpis">
+  <div class="kpi"><strong>{{ open_n }}</strong><span>Published listings</span></div>
+  <div class="kpi {{ 'attn' if pending_n }}"><strong>{{ pending_n }}</strong><span>Claims to review</span></div>
+  <div class="kpi"><strong>{{ my_claims|length }}</strong><span>Claims I sent</span></div>
+  <div class="kpi"><strong>{{ returned_n }}</strong><span>Items returned</span></div>
+</div>
+
+<section class="surface" aria-labelledby="my-listings">
+  <div class="section-head"><h2 id="my-listings">My listings</h2></div>
+  {% if my_items %}
+  <ul class="activity">
+    {% for i in my_items %}
+    <li class="activity-row">
+      <span class="activity-thumb">{{ photo_or_placeholder(i, label=False) }}</span>
+      <div class="activity-main">
+        <a class="title" href="{{ url_for('item_detail', item_id=i['id']) }}">{{ i['title'] }}</a>
+        <div class="sub"><span>{{ i['category'] }}</span><span>{{ i['ref_code'] }}</span><span>Posted {{ i['created_at']|pretty_date }}</span></div>
+      </div>
+      <div class="activity-side">
+        <span>{{ type_tag(i['type']) }}
+        {{ status_tag(i['status']) }}{% if i['status'] == 'active' %}<span class="tag tag-resolved">Published</span>{% endif %}{{ custody_tag(i) }}</span>
+        {% if i['pending_claims'] %}<a class="chip" href="{{ url_for('item_detail', item_id=i['id']) }}">{{ icon('inbox') }} {{ i['pending_claims'] }} pending claim{{ '' if i['pending_claims'] == 1 else 's' }}</a>{% endif %}
+      </div>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <div class="empty" style="border:0;padding:1.5rem 0">
+    <div class="empty-icon">{{ icon('box') }}</div>
+    <h3>You have not posted anything yet</h3>
+    <p>Lost something, or found something that is not yours? Post it and let the community help.</p>
+    <div class="hero-actions"><a class="btn btn-lost" href="{{ url_for('post_item', type='lost') }}">Report a lost item</a><a class="btn btn-found" href="{{ url_for('post_item', type='found') }}">Report a found item</a></div>
+  </div>
+  {% endif %}
+</section>
+
+<section class="surface" aria-labelledby="my-claims">
+  <div class="section-head"><h2 id="my-claims">My claims</h2></div>
+  {% if my_claims %}
+  <ul class="activity">
+    {% for c in my_claims %}
+    <li class="activity-row" style="flex-wrap:wrap">
+      <span class="activity-thumb">{{ photo_or_placeholder({'photo': c['item_photo'], 'type': c['item_type'], 'category': c['item_category'], 'title': c['title']}, label=False) }}</span>
+      <div class="activity-main">
+        <a class="title" href="{{ url_for('item_detail', item_id=c['item_id']) }}">{{ c['title'] }}</a>
+        <div class="sub"><span>Sent {{ c['created_at']|pretty_date }}</span><span>{{ c['ref_code'] }}</span></div>
+      </div>
+      <div class="activity-side">{{ claim_tag(c['status']) }}</div>
+      <div class="next-step" style="flex-basis:100%">
+        {% if c['status'] == 'approved' and c['item_status'] == 'returned' %}Handed over and recorded
+        {% elif c['status'] == 'approved' %}Approved. Open the report for the handover steps.
+        {% elif c['status'] == 'pending' %}Waiting for the finder to review
+        {% elif c['status'] == 'under_admin_review' %}College staff are reviewing your claim
+        {% elif c['status'] == 'needs_more_info' %}More information requested. Open the report to answer.
+        {% elif c['status'] == 'rejected' %}Not approved. Open the report to see the reason.
+        {% else %}Withdrawn{% endif %}
+      </div>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <div class="empty" style="border:0;padding:1.5rem 0">
+    <div class="empty-icon">{{ icon('handshake') }}</div>
+    <h3>You have not sent any claims</h3>
+    <p>Browse the listings to find your item and send a claim with proof.</p>
+    <div class="hero-actions"><a class="btn btn-primary" href="{{ url_for('index') }}">Browse listings</a></div>
+  </div>
+  {% endif %}
+</section>
+{% endblock %}

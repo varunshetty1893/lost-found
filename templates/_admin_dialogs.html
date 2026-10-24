@@ -1,0 +1,60 @@
+{% from "_macros.html" import icon %}
+{# Shared dialogs for the admin console. A button opens one with data-modal="<id>", data-action="<url>"
+   and data-values='<json>'. app.js fills the form, so each page needs only the buttons. #}
+
+<dialog class="modal" id="dlg-roster-edit" aria-labelledby="dlg-roster-edit-title">
+  <form method="post" data-submit-once>
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <input type="hidden" name="next" value="">
+    <div class="modal-head">
+      <h2 id="dlg-roster-edit-title">Edit person</h2>
+      <button class="modal-x" type="button" data-dialog-close aria-label="Close">{{ icon('x') }}</button>
+    </div>
+    <div class="modal-body">
+      <p class="card-note">ID number <strong data-fill="id_number"></strong> stays the same. Everything else can be changed.</p>
+      <div class="fgrid">
+        <div class="fld span2"><label for="re-name">Full name</label><input id="re-name" name="full_name" required minlength="2" maxlength="60" autocomplete="off" autofocus></div>
+        <div class="fld span2"><label for="re-email">College email</label><input id="re-email" name="email" type="email" required maxlength="120" autocomplete="off"></div>
+        <div class="fld"><label for="re-role">Role</label><select id="re-role" name="role"><option value="student">Student</option><option value="staff">Staff</option></select></div>
+        <div class="fld"><label for="re-dept">Department <span class="opt">(optional)</span></label><input id="re-dept" name="department" list="dept-suggestions" maxlength="80" autocomplete="off"></div>
+        <div class="fld span2" data-end-field><label for="re-end">Course end date <span class="req" aria-hidden="true"> *</span></label><input id="re-end" name="academic_end" type="date" data-end-input><span class="hint">The student's account is closed automatically after this day.</span></div>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn" type="button" data-dialog-close>Cancel</button>
+      <button class="btn btn-primary" type="submit"><span data-label>Save changes</span></button>
+    </div>
+  </form>
+</dialog>
+
+<dialog class="modal" id="dlg-action" aria-labelledby="dlg-action-title">
+  <form method="post" data-submit-once>
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <input type="hidden" name="next" value="">
+    <div class="modal-head">
+      <h2 id="dlg-action-title" data-fill="title">Are you sure?</h2>
+      <button class="modal-x" type="button" data-dialog-close aria-label="Close">{{ icon('x') }}</button>
+    </div>
+    <div class="modal-body">
+      <p class="card-note" data-fill="message"></p>
+      <div class="fld" data-show-if="reason_label">
+        <label for="da-reason" data-fill="reason_label">Reason</label>
+        <input id="da-reason" name="reason" type="text" maxlength="200" autocomplete="off">
+        <span class="hint" data-fill="reason_hint"></span>
+      </div>
+      <div class="fld" data-show-if="date_label">
+        <label for="da-end" data-fill="date_label">Date</label>
+        <input id="da-end" name="end_date" type="date">
+        <span class="hint" data-fill="date_hint"></span>
+      </div>
+      <div class="fld" data-show-if="confirm_word">
+        <label for="da-confirm">Type <strong>REMOVE</strong> to confirm</label>
+        <input id="da-confirm" name="confirm_text" type="text" maxlength="10" autocomplete="off" placeholder="REMOVE">
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn" type="button" data-dialog-close>Cancel</button>
+      <button class="btn btn-danger-solid" type="submit" data-confirm-btn><span data-label data-fill="confirm">Confirm</span></button>
+    </div>
+  </form>
+</dialog>

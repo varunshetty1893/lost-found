@@ -1,0 +1,93 @@
+{% extends "admin_base.html" %}
+{% from "_macros.html" import icon, type_tag, role_badge %}
+{% from "_admin_macros.html" import page_head %}
+{% block title %}Home{% endblock %}
+{% block admin %}
+{% set hour = now_hour %}
+{% call page_head((('Good morning' if hour < 12 else ('Good afternoon' if hour < 17 else 'Good evening')) ~ ', ' ~ me['name'].split()[0]), 'Here is what needs you today.') %}{% endcall %}
+
+{% set todo = attention.requests + attention.pending_reports + attention.awaiting_receipt + attention.claims_review + attention.slow_claims + attention.stuck_handovers + attention.stale_items %}
+
+<section class="adm-card todo" aria-labelledby="todo-h">
+  <div class="adm-card-head"><h2 id="todo-h">To do</h2>
+    {% if todo == 0 %}<span class="pill pill-active">All caught up</span>{% else %}<span class="pill pill-pending_approval">{{ todo }} thing{{ '' if todo == 1 else 's' }} waiting</span>{% endif %}</div>
+
+  {% if todo == 0 %}
+  <div class="allclear">{{ icon('check-circle') }}<div><strong>Nothing needs your attention.</strong><p class="muted">New ID requests, unanswered claims and stuck handovers will show up here.</p></div></div>
+  {% endif %}
+
+  {% if attention.requests %}
+  <div class="todo-block">
+    <div class="todo-head"><span class="todo-num">{{ attention.requests }}</span><div><h3>People waiting for approval</h3><p class="muted small">They are not on the campus list, so they sent an ID card photo.</p></div><a class="btn btn-primary btn-small" href="{{ url_for('admin_requests') }}">Review all</a></div>
+    <ul class="todo-list">{% for u in waiting %}<li><span><strong>{{ u['name'] }}</strong> {{ role_badge(u['role']) }} <span class="muted small">ID {{ u['id_number'] }} · asked {{ u['created_at']|stamp }}</span></span><a href="{{ url_for('admin_requests') }}">Check ID card &rarr;</a></li>{% endfor %}</ul>
+  </div>
+  {% endif %}
+
+  {% if attention.pending_reports %}
+  <div class="todo-block"><div class="todo-head"><span class="todo-num">{{ attention.pending_reports }}</span><div><h3>Reports waiting to be published</h3><p class="muted small">New reports are public only after staff approve them.</p></div><a class="btn btn-primary btn-small" href="{{ url_for('staff_queue', name='pending_reports') }}">Review</a></div></div>
+  {% endif %}
+  {% if attention.awaiting_receipt %}
+  <div class="todo-block"><div class="todo-head"><span class="todo-num">{{ attention.awaiting_receipt }}</span><div><h3>Items finders plan to hand to the office</h3><p class="muted small">Not in custody until staff confirm they received them.</p></div><a class="btn btn-small" href="{{ url_for('staff_queue', name='awaiting_receipt') }}">Open queue</a></div></div>
+  {% endif %}
+  {% if attention.claims_review %}
+  <div class="todo-block"><div class="todo-head"><span class="todo-num">{{ attention.claims_review }}</span><div><h3>Claims that need a staff decision</h3><p class="muted small">High-risk, competing or escalated claims.</p></div><a class="btn btn-primary btn-small" href="{{ url_for('staff_queue', name='claims_review') }}">Review</a></div></div>
+  {% endif %}
+
+  {% if attention.slow_claims %}
+  <div class="todo-block">
+    <div class="todo-head"><span class="todo-num">{{ attention.slow_claims }}</span><div><h3>Claims nobody has answered</h3><p class="muted small">Someone claimed an item and the poster has not replied for 3+ days.</p></div><a class="btn btn-small" href="{{ url_for('admin_listings', flag='slow') }}">See items</a></div>
+    <ul class="todo-list">{% for i in slow %}<li><span>{{ type_tag(i['type']) }} <strong>{{ i['title'] }}</strong> <span class="muted small">posted by {{ i['poster'] }}</span></span><a href="{{ url_for('item_detail', item_id=i['id']) }}">Open &rarr;</a></li>{% endfor %}</ul>
+  </div>
+  {% endif %}
+
+  {% if attention.stuck_handovers %}
+  <div class="todo-block">
+    <div class="todo-head"><span class="todo-num">{{ attention.stuck_handovers }}</span><div><h3>Disputed handovers</h3><p class="muted small">One side says the handover did not happen. Resolve before anything is released.</p></div><a class="btn btn-small" href="{{ url_for('staff_queue', name='disputes') }}">See items</a></div>
+    <ul class="todo-list">{% for i in locked %}<li><span>{{ type_tag(i['type']) }} <strong>{{ i['title'] }}</strong> <span class="muted small">posted by {{ i['poster'] }}</span></span><a href="{{ url_for('item_detail', item_id=i['id']) }}">Open &rarr;</a></li>{% endfor %}</ul>
+  </div>
+  {% endif %}
+
+  {% if attention.stale_items %}
+  <div class="todo-block">
+    <div class="todo-head"><span class="todo-num soft">{{ attention.stale_items }}</span><div><h3>Old published listings</h3><p class="muted small">Posted more than 30 days ago. Tidy up if they are no longer needed.</p></div><a class="btn btn-small" href="{{ url_for('admin_listings', flag='stale') }}">See items</a></div>
+  </div>
+  {% endif %}
+</section>
+
+<div class="num-row">
+  <a class="num" href="{{ url_for('admin_users', status='active') }}"><strong>{{ stats.members }}</strong><span>People registered</span><small>+{{ stats.new_members }} this week</small></a>
+  <a class="num" href="{{ url_for('admin_listings', status='active') }}"><strong>{{ stats.open }}</strong><span>Published items</span><small>{{ stats.open_lost }} lost · {{ stats.open_found }} found</small></a>
+  <a class="num" href="{{ url_for('staff_queue', name='awaiting_collection') }}"><strong>{{ stats.claimed }}</strong><span>Approved, awaiting handover</span><small>claim approved, not yet returned</small></a>
+  <a class="num" href="{{ url_for('admin_listings', status='returned') }}"><strong>{{ stats.returned }}</strong><span>Given back to owners</span><small>{{ stats.rate }}% of all items</small></a>
+</div>
+
+<h2 class="adm-h2">Where do you want to go?</h2>
+<div class="go-grid">
+  <a class="go" href="{{ url_for('admin_users') }}"><span class="go-icon">{{ icon('users') }}</span><strong>People</strong><span class="muted">See everyone who registered. Suspend someone who breaks the rules.</span></a>
+  <a class="go" href="{{ url_for('admin_listings') }}"><span class="go-icon">{{ icon('box') }}</span><strong>Items</strong><span class="muted">Look at every lost and found post. Remove bad ones.</span></a>
+  <a class="go" href="{{ url_for('admin_roster') }}"><span class="go-icon">{{ icon('table') }}</span><strong>Campus list</strong><span class="muted">Add or import the students and staff allowed to register.</span></a>
+  <a class="go" href="{{ url_for('admin_audit') }}"><span class="go-icon">{{ icon('activity') }}</span><strong>Activity log</strong><span class="muted">A record of everything admins and staff have done.</span></a>
+</div>
+
+<div class="adm-cols">
+  <section class="adm-card" aria-labelledby="chart-h">
+    <div class="adm-card-head"><h2 id="chart-h">New items, last 14 days</h2>
+      <span class="legend"><i class="dot lost"></i> Lost <i class="dot found"></i> Found</span></div>
+    <div class="chart" role="img" aria-label="Bar chart of new lost and found items per day for the last 14 days">
+      {% for c in chart %}
+      <div class="chart-col" title="{{ c.label }}: {{ c.lost }} lost, {{ c.found }} found">
+        <span class="chart-num">{{ c.total if c.total else '' }}</span>
+        <div class="chart-bar"><i class="seg found" style="height: {{ c.found_h }}%"></i><i class="seg lost" style="height: {{ c.lost_h }}%"></i></div>
+        <span class="chart-x">{{ c.short }}</span>
+      </div>
+      {% endfor %}
+    </div>
+  </section>
+  <section class="adm-card" aria-labelledby="act-h">
+    <div class="adm-card-head"><h2 id="act-h">Latest activity</h2><a class="adm-link" href="{{ url_for('admin_audit') }}">See all</a></div>
+    {% if recent %}
+    <ul class="feed">{% for r in recent[:6] %}<li><div>{{ r['action']|replace('_', ' ')|capitalize }}: {{ r['detail'] }}</div><span class="muted small">{{ r['actor'] or 'System' }} · {{ r['created_at']|stamp }}</span></li>{% endfor %}</ul>
+    {% else %}<p class="muted">Nothing has happened yet.</p>{% endif %}
+  </section>
+</div>
+{% endblock %}
